@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { XMLValidator } from "fast-xml-parser";
-import { menuCards, pageDeck } from "./budget";
+import { menuCards, pageDeck, utf8Length } from "./budget";
+import { paginate } from "./fit";
+import { LITE_MAX, toLite } from "./lite";
 import { mapHref } from "./markup";
 import { PROFILES, type Deck, type ProfileId } from "./types";
 import { toWml } from "./wml";
@@ -23,6 +25,40 @@ const pfArb = fc.constantFrom<ProfileId>("nokia3310", "generic");
 const unescape = (s: string) => s.replace(/&amp;/g, "&").replace(/\$\$/g, "$");
 const SAFE_PATH = /^\/wml(\/[A-Za-z0-9\-._~%!$&'()*+,;=:@/]*)?(\?[A-Za-z0-9\-._~%!$&'()*+,;=:@/?]*)?$/;
 const hrefs = (xml: string) => [...xml.matchAll(/href="([^"]*)"/g)].map((m) => unescape(m[1] ?? ""));
+
+const TAGS = new Set(["html", "head", "meta", "title", "body", "p", "b", "br", "a", "form", "input", "hr"]);
+const ATTRS = new Set(["lang", "charset", "name", "content", "href", "accesskey", "action", "method", "type", "value", "maxlength"]);
+
+describe("lite HTML serializer", () => {
+  it("property: no script/img/handlers, only allowed tags, unique accesskeys, text escaped", () => {
+    fc.assert(
+      fc.property(deckArb, pfArb, (deck, pf) => {
+        const html = toLite(deck, pf);
+        expect(/<\s*(script|img)/i.test(html)).toBe(false);
+        expect(/&(?!(amp|lt|gt|quot|#39);)/.test(html)).toBe(false);
+        for (const m of html.replace("<!DOCTYPE html>", "").matchAll(/<\/?([^\s>/]+)([^>]*)>/g)) {
+          expect(TAGS.has(m[1] ?? "")).toBe(true);
+          for (const a of (m[2] ?? "").matchAll(/\s([^\s=]+)=/g)) expect(ATTRS.has(a[1] ?? "")).toBe(true);
+        }
+        const keys = [...html.matchAll(/accesskey="([^"]*)"/g)].map((m) => m[1]);
+        expect(new Set(keys).size).toBe(keys.length);
+        expect(html).toContain('accesskey="0">0 Home</a>');
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("property: real paginated article decks stay under 3 KB", () => {
+    const words = fc.array(fc.constantFrom("Kampala", "is", "the", "capital", "of", "Uganda", "&", "<b>", "Lake", "Victoria", "1962."), { minLength: 1, maxLength: 1500 });
+    fc.assert(
+      fc.property(words, fc.constantFrom(...Object.values(PROFILES)), fc.nat(5), (w, p, page) => {
+        const deck = pageDeck(paginate("Kampala", w.join(" "), p, "a"), page, (n) => `/wiki/a/Kampala?p=${n}`, p);
+        expect(utf8Length(toLite(deck, p.id))).toBeLessThan(LITE_MAX);
+      }),
+      { numRuns: 100 },
+    );
+  });
+});
 
 describe("WML 1.1 serializer", () => {
   it("property: hostile decks give well-formed XML, no control chars, only /wml or #card targets", () => {
