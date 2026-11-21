@@ -8,13 +8,14 @@ export async function GET(req: Request): Promise<Response> {
   const profile = PROFILES[isProfileId(pid) ? pid : DEFAULT_PROFILE];
   let status = 200;
   let deck;
+  let normalBytes: number | undefined;
   try {
-    ({ deck, status } = await resolveDeck(params.get("path") ?? "/", profile));
+    ({ deck, status, normalBytes } = await resolveDeck(params.get("path") ?? "/", profile));
   } catch {
     deck = notFoundDeck("/", profile);
     status = 500;
   }
-  const { body } = envelope(deck);
+  const { body } = envelope(deck, normalBytes !== undefined ? { normalBytes } : {});
   return new Response(body, {
     status,
     headers: {

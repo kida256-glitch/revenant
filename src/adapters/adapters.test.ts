@@ -72,3 +72,25 @@ describe("property 4: parsers and router", () => {
     expect(text).toContain("2026-11-14 00:02 UTC");
   });
 });
+
+describe("normalBytes comparison", () => {
+  const p = PROFILES.nokia3310;
+  const get = async () => ({ json: { query: { pages: [{ title: "Uganda", extract: "Uganda is a country." }] } }, stale: false });
+  it("is included when the HTML size arrives in time", async () => {
+    const r = await resolveDeck("/wiki/a/Uganda", p, get, async () => 123456);
+    expect(r.normalBytes).toBe(123456);
+    expect(validDeck(r.deck, p)).toBe(true);
+  });
+  it("is omitted, without blocking, when the fetch fails or is slow", async () => {
+    for (const html of [async () => undefined, () => Promise.reject(new Error("x")), () => new Promise<number>(() => {})]) {
+      const r = await resolveDeck("/wiki/a/Uganda", p, get, html);
+      expect(r.normalBytes).toBeUndefined();
+      expect(validDeck(r.deck, p)).toBe(true);
+    }
+  });
+  it("is only requested for article pages", async () => {
+    let calls = 0;
+    await resolveDeck("/about", p, get, async () => { calls++; return 1; });
+    expect(calls).toBe(0);
+  });
+});

@@ -9,7 +9,7 @@ export async function GET(req: Request): Promise<Response> {
   let status = 200;
   try {
     const { path, profile } = pathFromRequest(req.url, "/wml");
-    const r = await resolveDeck(path, profile);
+    const r = await resolveDeck(path, profile, undefined, async () => undefined);
     status = r.status;
     body = toWml(r.deck, profile.id);
   } catch {

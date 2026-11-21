@@ -46,3 +46,31 @@ export const getJson: GetJson = async (url, ttlMs) => {
     throw err;
   }
 };
+
+export type GetBytes = (url: string) => Promise<number | undefined>;
+const MAX_HTML = 10_000_000;
+const sizes = new Map<string, { n: number; at: number }>();
+
+/**
+ * Real uncompressed byte length of a normal web page (5 s timeout). Never
+ * throws: returns undefined on any failure so callers can fail open.
+ */
+export const htmlBytes: GetBytes = async (url) => {
+  const hit = sizes.get(url);
+  if (hit && Date.now() - hit.at < 3_600_000) return hit.n;
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { "User-Agent": userAgent(), Accept: "text/html" },
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return undefined;
+    const n = (await res.arrayBuffer()).byteLength;
+    if (n === 0 || n > MAX_HTML) return undefined;
+    if (sizes.size >= MAX_ENTRIES) sizes.clear();
+    sizes.set(url, { n, at: Date.now() });
+    return n;
+  } catch {
+    return undefined;
+  }
+};

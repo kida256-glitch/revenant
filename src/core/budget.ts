@@ -145,14 +145,14 @@ export function finalize(deck: Deck, profile: Profile): Deck {
 }
 
 /** Response body `{deck, bytes}` where bytes is the body's own UTF-8 length. */
-export function envelope(deck: Deck): { body: string; bytes: number } {
+export function envelope(deck: Deck, extra: { normalBytes?: number } = {}): { body: string; bytes: number } {
   let n = 0;
-  let body = JSON.stringify({ deck, bytes: n });
+  let body = JSON.stringify({ deck, bytes: n, ...extra });
   for (let i = 0; i < 6; i++) {
     const m = utf8Length(body);
     if (m === n) break;
     n = m;
-    body = JSON.stringify({ deck, bytes: n });
+    body = JSON.stringify({ deck, bytes: n, ...extra });
   }
   return { body, bytes: n };
 }

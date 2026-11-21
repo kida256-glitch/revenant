@@ -53,9 +53,10 @@ export default function Phone() {
   const [status, setStatus] = useState<Status>("loading");
   const [bytes, setBytes] = useState<number | null>(null);
   const [cached, setCached] = useState(false);
+  const [normal, setNormal] = useState<number | undefined>(undefined);
   const [session, setSession] = useState(0);
   const navRef = useRef(nav);
-  const cache = useRef(new Map<string, { deck: Deck; bytes: number }>());
+  const cache = useRef(new Map<string, { deck: Deck; bytes: number; normal?: number }>());
 
   const commit = useCallback((s: NavState) => {
     navRef.current = s;
@@ -64,26 +65,28 @@ export default function Phone() {
 
   const load = useCallback(async (path: string, pid: ProfileId) => {
     const key = `${pid}|${path}`;
-    const apply = (deck: Deck, n: number, fromCache: boolean, st: Status) => {
+    const apply = (deck: Deck, n: number, fromCache: boolean, st: Status, nb?: number) => {
       if (currentPath(navRef.current) !== path) return;
       commit(navLoaded(navRef.current, deck));
       setBytes(n);
       setCached(fromCache);
+      setNormal(nb);
       setStatus(st);
     };
     const hit = cache.current.get(key);
-    if (hit) return apply(hit.deck, hit.bytes, true, hit.deck.offline ? "offline" : hit.deck.error ? "error" : "ok");
+    if (hit) return apply(hit.deck, hit.bytes, true, hit.deck.offline ? "offline" : hit.deck.error ? "error" : "ok", hit.normal);
     setStatus("loading");
     try {
       const res = await fetch(`/api/deck?path=${encodeURIComponent(path)}&profile=${pid}`);
       const text = await res.text();
       const n = new TextEncoder().encode(text).length;
-      const body = JSON.parse(text) as { deck?: Deck };
+      const body = JSON.parse(text) as { deck?: Deck; normalBytes?: unknown };
+      const nb = typeof body.normalBytes === "number" && body.normalBytes > 0 ? body.normalBytes : undefined;
       const deck = body.deck;
       if (!deck || !Array.isArray(deck.cards) || deck.cards.length === 0) throw new Error("bad deck");
       setSession((x) => x + n);
-      if (res.ok && !deck.offline) cache.current.set(key, { deck, bytes: n });
-      apply(deck, n, false, deck.offline ? "offline" : deck.error ? "error" : "ok");
+      if (res.ok && !deck.offline) cache.current.set(key, { deck, bytes: n, normal: nb });
+      apply(deck, n, false, deck.offline ? "offline" : deck.error ? "error" : "ok", nb);
     } catch {
       apply(unavailableDeck(path, "Network", PROFILES[pid]), 0, false, "error");
     }
@@ -168,6 +171,12 @@ export default function Phone() {
           {status === "offline" && <span className="badge">OFFLINE</span>}
           {status === "error" && <span className="badge">ERROR</span>}
         </div>
+        {normal !== undefined && bytes !== null && status !== "loading" && (
+          <div className="meter-sub">
+            Normal page HTML: {(normal / 1024).toFixed(1)} KB. This deck: {(bytes / 1024).toFixed(1)} KB
+            <br />(article HTML only, no images or scripts)
+          </div>
+        )}
         <div className="meter-sub">Real UTF-8 size of the response body, uncompressed. Session: {session.toLocaleString()} B</div>
       </div>
 
