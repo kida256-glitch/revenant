@@ -11,3 +11,10 @@ Property test 4 (hostile JSON -> valid in-budget deck) generated very long Wikip
 ## What didn't work or surprised us
 - Hooks load at session start. Edits to `.kiro/hooks` took effect only in a new session, and the hooks fire on agent saves, not on manual edits.
 - npm blocked esbuild's install script, but Vitest still ran fine without approving it.
+
+## M4 Old protocols
+- 4.1 /wml: pure WML 1.1 serializer in core; fast-check feeds hostile decks and parses output with fast-xml-parser. Passed first run; `$` must be doubled (WML variable syntax) and lone surrogates stripped for XML.
+- 4.2 /lite: no-JS HTML with accesskeys 1-9, Home=0; property checks a tag/attribute allowlist, unique accesskeys, escaped `&`, and < 3 KB for real paginated decks.
+- 4.3 normalBytes: article HTML fetched in parallel and used only if settled before the deck (fail open). Surprise: the 735 KB Wikipedia HTML is slower than the API, so the first view usually lacks the comparison; it appears from the cache on later loads.
+- 4.4 README rewritten (three ways to load, honest limitations). 4.5 Definition of Done: 19/19 tests, typecheck, lint, build green.
+- Surprise: `npm run dev` must run via a background process tool, not a plain shell call; and build had to wait until the dev server was stopped to avoid sharing `.next`.
