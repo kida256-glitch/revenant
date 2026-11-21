@@ -1,3 +1,4 @@
 # Kiro usage log
 
 - M0: Steering (5 docs), one spec (EARS requirements/design/tasks), two PostFileSave hooks (format checked against kiro.dev/docs/hooks). Worked: single-pass spec. Ambiguity decisions: one screen = one card; settings links use `set:profile=` handled client-side; rates from open.er-api.com.
+- M1: Spec tasks drove order; PostFileSave hooks ran core tests/typecheck on save. Property test 4 caught a real bug (long titles overflowed the 200-char path cap); fixed with TITLE_MAX=60. Vitest ran without approving esbuild's install script. Decision: response 'bytes' is a self-consistent UTF-8 length of the uncompressed body; data fetches use in-memory cache + next.revalidate=300.
