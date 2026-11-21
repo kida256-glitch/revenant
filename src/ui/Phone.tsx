@@ -53,44 +53,71 @@ export default function Phone() {
   const [status, setStatus] = useState<Status>("loading");
   const [bytes, setBytes] = useState<number | null>(null);
   const [cached, setCached] = useState(false);
-  const [normal, setNormal] = useState<number | undefined>(undefined);
+  const [weight, setWeight] = useState<"measuring" | number | null>(null);
+  const weights = useRef(new Map<string, number>());
   const [session, setSession] = useState(0);
   const navRef = useRef(nav);
-  const cache = useRef(new Map<string, { deck: Deck; bytes: number; normal?: number }>());
+  const cache = useRef(new Map<string, { deck: Deck; bytes: number }>());
 
   const commit = useCallback((s: NavState) => {
     navRef.current = s;
     setNav(s);
   }, []);
 
+  /** Non-blocking size comparison for article pages; failures show nothing. */
+  const measure = useCallback((path: string) => {
+    let title = "";
+    try {
+      title = decodeURIComponent(/^\/wiki\/a\/([^/?]+)/.exec(path)?.[1] ?? "");
+    } catch {
+      title = "";
+    }
+    if (!title) return setWeight(null);
+    const known = weights.current.get(title);
+    if (known !== undefined) return setWeight(known);
+    setWeight("measuring");
+    const still = () => currentPath(navRef.current) === path;
+    fetch(`/api/weight?title=${encodeURIComponent(title)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b: unknown) => {
+        const n = (b as { normalBytes?: unknown } | null)?.normalBytes;
+        if (typeof n !== "number" || !(n > 0)) throw new Error("no size");
+        weights.current.set(title, n);
+        if (still()) setWeight(n);
+      })
+      .catch(() => {
+        if (still()) setWeight(null);
+      });
+  }, []);
+
   const load = useCallback(async (path: string, pid: ProfileId) => {
     const key = `${pid}|${path}`;
-    const apply = (deck: Deck, n: number, fromCache: boolean, st: Status, nb?: number) => {
+    const apply = (deck: Deck, n: number, fromCache: boolean, st: Status) => {
       if (currentPath(navRef.current) !== path) return;
       commit(navLoaded(navRef.current, deck));
       setBytes(n);
       setCached(fromCache);
-      setNormal(nb);
+      if (st === "error") setWeight(null);
+      else measure(path);
       setStatus(st);
     };
     const hit = cache.current.get(key);
-    if (hit) return apply(hit.deck, hit.bytes, true, hit.deck.offline ? "offline" : hit.deck.error ? "error" : "ok", hit.normal);
+    if (hit) return apply(hit.deck, hit.bytes, true, hit.deck.offline ? "offline" : hit.deck.error ? "error" : "ok");
     setStatus("loading");
     try {
       const res = await fetch(`/api/deck?path=${encodeURIComponent(path)}&profile=${pid}`);
       const text = await res.text();
       const n = new TextEncoder().encode(text).length;
-      const body = JSON.parse(text) as { deck?: Deck; normalBytes?: unknown };
-      const nb = typeof body.normalBytes === "number" && body.normalBytes > 0 ? body.normalBytes : undefined;
+      const body = JSON.parse(text) as { deck?: Deck };
       const deck = body.deck;
       if (!deck || !Array.isArray(deck.cards) || deck.cards.length === 0) throw new Error("bad deck");
       setSession((x) => x + n);
-      if (res.ok && !deck.offline) cache.current.set(key, { deck, bytes: n, normal: nb });
-      apply(deck, n, false, deck.offline ? "offline" : deck.error ? "error" : "ok", nb);
+      if (res.ok && !deck.offline) cache.current.set(key, { deck, bytes: n });
+      apply(deck, n, false, deck.offline ? "offline" : deck.error ? "error" : "ok");
     } catch {
       apply(unavailableDeck(path, "Network", PROFILES[pid]), 0, false, "error");
     }
-  }, [commit]);
+  }, [commit, measure]);
 
   useEffect(() => {
     const saved = localStorage.getItem("revenant.profile");
@@ -171,10 +198,11 @@ export default function Phone() {
           {status === "offline" && <span className="badge">OFFLINE</span>}
           {status === "error" && <span className="badge">ERROR</span>}
         </div>
-        {normal !== undefined && bytes !== null && status !== "loading" && (
+        {weight !== null && bytes !== null && status !== "loading" && (
           <div className="meter-sub">
-            Normal page HTML: {(normal / 1024).toFixed(1)} KB. This deck: {(bytes / 1024).toFixed(1)} KB
-            <br />(article HTML only, no images or scripts)
+            {weight === "measuring"
+              ? "Normal page HTML: measuring..."
+              : `Normal page HTML: ${(weight / 1024).toFixed(1)} KB. This deck: ${(bytes / 1024).toFixed(1)} KB (article HTML only, no images or scripts)`}
           </div>
         )}
         <div className="meter-sub">Real UTF-8 size of the response body, uncompressed. Session: {session.toLocaleString()} B</div>

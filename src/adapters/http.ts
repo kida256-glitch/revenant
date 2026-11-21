@@ -62,7 +62,7 @@ export const htmlBytes: GetBytes = async (url) => {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { "User-Agent": userAgent(), Accept: "text/html" },
-      next: { revalidate: 300 },
+      next: { revalidate: 3600 },
     });
     if (!res.ok) return undefined;
     const n = (await res.arrayBuffer()).byteLength;

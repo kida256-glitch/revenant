@@ -22,7 +22,8 @@ const cardArb = fc.record(
 const deckArb = fc.record({ path: anyVal, cards: fc.array(cardArb, { maxLength: 5 }) }) as unknown as fc.Arbitrary<Deck>;
 const pfArb = fc.constantFrom<ProfileId>("nokia3310", "generic");
 
-const unescape = (s: string) => s.replace(/&amp;/g, "&").replace(/\$\$/g, "$");
+const unescape = (s: string) =>
+  s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/\$\$/g, "$");
 const SAFE_PATH = /^\/wml(\/[A-Za-z0-9\-._~%!$&'()*+,;=:@/]*)?(\?[A-Za-z0-9\-._~%!$&'()*+,;=:@/?]*)?$/;
 const hrefs = (xml: string) => [...xml.matchAll(/href="([^"]*)"/g)].map((m) => unescape(m[1] ?? ""));
 
@@ -90,4 +91,8 @@ describe("WML 1.1 serializer", () => {
     expect(xml).toContain("WML 1.1");
     expect(xml).toContain('<a href="/wml/wiki">1 Wikipedia</a>');
   });
+});
+
+it("percent-encodes RFC 3986-illegal path characters (found by property test)", () => {
+  expect(mapHref("/]", "/wml")).toBe("/wml/%5D");
 });

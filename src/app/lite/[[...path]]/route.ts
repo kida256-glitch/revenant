@@ -9,7 +9,7 @@ export async function GET(req: Request): Promise<Response> {
   let status = 200;
   try {
     const { path, profile } = pathFromRequest(req.url, "/lite");
-    const r = await resolveDeck(path, profile, undefined, async () => undefined);
+    const r = await resolveDeck(path, profile);
     status = r.status;
     body = toLite(r.deck, profile.id);
   } catch {

@@ -4,6 +4,7 @@ import { validDeck } from "@/core/budget";
 import { PROFILES } from "@/core/types";
 import { parseAsk, parseRates, parseWeather, parseWikiArticle, parseWikiSearch } from "./parse";
 import { resolveDeck } from "./router";
+import { articleUrl, resolveWeight } from "./weight";
 
 const profileArb = fc.constantFrom(...Object.values(PROFILES));
 const huge = "Lorem <b>ipsum</b> \u0000dolor &amp; sit\u001b amet ".repeat(4000);
@@ -73,24 +74,32 @@ describe("property 4: parsers and router", () => {
   });
 });
 
-describe("normalBytes comparison", () => {
+describe("size comparison (/api/weight)", () => {
   const p = PROFILES.nokia3310;
   const get = async () => ({ json: { query: { pages: [{ title: "Uganda", extract: "Uganda is a country." }] } }, stale: false });
-  it("is included when the HTML size arrives in time", async () => {
-    const r = await resolveDeck("/wiki/a/Uganda", p, get, async () => 123456);
-    expect(r.normalBytes).toBe(123456);
+  const outcomes = [async () => 123456, async () => undefined, () => Promise.reject(new Error("x")), async () => Number.NaN];
+
+  it("deck responses no longer carry normalBytes", async () => {
+    const r = await resolveDeck("/wiki/a/Uganda", p, get);
+    expect("normalBytes" in r).toBe(false);
     expect(validDeck(r.deck, p)).toBe(true);
   });
-  it("is omitted, without blocking, when the fetch fails or is slow", async () => {
-    for (const html of [async () => undefined, () => Promise.reject(new Error("x")), () => new Promise<number>(() => {})]) {
-      const r = await resolveDeck("/wiki/a/Uganda", p, get, html);
-      expect(r.normalBytes).toBeUndefined();
-      expect(validDeck(r.deck, p)).toBe(true);
-    }
+
+  it("property: any title and any fetch outcome gives normalBytes or a small error, never throws", async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.oneof(hostileVal, fc.constant("Uganda")), fc.constantFrom(...outcomes), async (title, html) => {
+        const r = await resolveWeight(title, html);
+        if (r.status === 200) expect(r.body).toEqual({ normalBytes: 123456 });
+        else expect("error" in r.body && JSON.stringify(r.body).length < 40).toBe(true);
+      }),
+      { numRuns: 200 },
+    );
   });
-  it("is only requested for article pages", async () => {
-    let calls = 0;
-    await resolveDeck("/about", p, get, async () => { calls++; return 1; });
-    expect(calls).toBe(0);
+
+  it("validates and caps the title", () => {
+    expect(articleUrl("Uganda People's Defence Force")).toBe("https://en.wikipedia.org/wiki/Uganda_People's_Defence_Force");
+    expect(articleUrl("x".repeat(61))).toBeNull();
+    expect(articleUrl("")).toBeNull();
+    expect(articleUrl(42)).toBeNull();
   });
 });

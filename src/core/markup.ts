@@ -44,5 +44,7 @@ export function mapHref(href: unknown, base: string, pf: ProfileId = DEFAULT_PRO
   const u = new URL(path, "http://x");
   u.searchParams.delete("pf");
   if (profile !== DEFAULT_PROFILE) u.searchParams.set("pf", profile);
-  return (u.pathname === "/" ? base : base + u.pathname) + u.search;
+  const out = (u.pathname === "/" ? base : base + u.pathname) + u.search;
+  // URL leaves some RFC 3986-illegal characters (e.g. "[", "]", "|") raw; percent-encode them.
+  return out.replace(/[^A-Za-z0-9\-._~%!$&'()*+,;=:@/?]/g, (ch) => encodeURIComponent(ch));
 }

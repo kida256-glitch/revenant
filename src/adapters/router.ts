@@ -3,7 +3,7 @@ import { paginate } from "@/core/fit";
 import { sanitize } from "@/core/sanitize";
 import type { Deck, Profile } from "@/core/types";
 import { PROFILES } from "@/core/types";
-import { getJson as defaultGet, htmlBytes, type GetBytes, type GetJson } from "./http";
+import { getJson as defaultGet, type GetJson } from "./http";
 import { parseAsk, parseRates, parseWeather, parseWikiArticle, parseWikiSearch, TITLE_MAX, topTitle } from "./parse";
 
 export const CITIES: Record<string, { name: string; lat: number; lon: number }> = {
@@ -26,15 +26,13 @@ const HOUR = 3_600_000;
 export interface Resolved {
   deck: Deck;
   status: number;
-  /** Size of the normal Wikipedia article HTML, when it arrived in time. */
-  normalBytes?: number;
 }
 
 function staticDeck(path: string, title: string, intro: string, links: { label: string; href: string }[], profile: Profile, input?: { name: string; action: string }): Deck {
   return pageDeck(menuCards(title, intro, links, profile, { input }), 0, () => path, profile);
 }
 
-async function route(path: string, profile: Profile, get: GetJson, html: GetBytes): Promise<Resolved> {
+async function route(path: string, profile: Profile, get: GetJson): Promise<Resolved> {
   const url = new URL(`http://x${path}`);
   const parts = url.pathname.split("/").filter(Boolean);
   const q = sanitize(url.searchParams.get("q") ?? "", 40);
@@ -69,12 +67,9 @@ async function route(path: string, profile: Profile, get: GetJson, html: GetByte
     if (!title) return notFound();
     const p = Math.min(1000, Math.max(0, Number.parseInt(url.searchParams.get("p") ?? "0", 10) || 0));
     const u = `${WIKI}/w/api.php?${new URLSearchParams({ action: "query", prop: "extracts", explaintext: "1", format: "json", formatversion: "2", redirects: "1", titles: title })}`;
-    // Comparison fetch runs in parallel and fails open: used only if it settled before the deck is ready.
-    let normalBytes: number | undefined;
-    html(`${WIKI}/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`).then((n) => { normalBytes = n; }, () => undefined);
     const r = await get(u, HOUR);
     const deck = { ...parseWikiArticle(r.json, title, p, profile), ...(r.stale && { offline: true }) };
-    return { status: 200, deck, ...(normalBytes !== undefined && { normalBytes }) };
+    return { status: 200, deck };
   }
 
   if (a === "weather" && !b) {
@@ -139,12 +134,12 @@ async function route(path: string, profile: Profile, get: GetJson, html: GetByte
 const SOURCES: Record<string, string> = { wiki: "Wikipedia", ask: "Wikipedia", weather: "Weather", money: "Rates" };
 
 /** Resolve a path to a deck. Never throws; always returns a valid in-budget deck. */
-export async function resolveDeck(rawPath: unknown, profile: Profile, get: GetJson = defaultGet, html: GetBytes = htmlBytes): Promise<Resolved> {
+export async function resolveDeck(rawPath: unknown, profile: Profile, get: GetJson = defaultGet): Promise<Resolved> {
   if (typeof rawPath !== "string" || !rawPath.startsWith("/") || rawPath.length > MAX_PATH) {
     return { deck: notFoundDeck("/", profile), status: 404 };
   }
   try {
-    const r = await route(rawPath, profile, get, html);
+    const r = await route(rawPath, profile, get);
     return { ...r, deck: finalize(r.deck, profile) };
   } catch (err) {
     if (err instanceof URIError) return { deck: notFoundDeck(rawPath, profile), status: 404 };

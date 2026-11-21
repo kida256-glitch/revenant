@@ -37,7 +37,8 @@ flowchart LR
     WAP["WAP browser"]
   end
   subgraph Server["Next.js 15 server"]
-    API["GET /api/deck<br/>JSON {deck, bytes, normalBytes?}"]
+    API["GET /api/deck<br/>JSON {deck, bytes}"]
+    Weight["GET /api/weight?title=<br/>{normalBytes}"]
     LiteR["GET /lite/...<br/>core/lite.ts -> HTML"]
     WmlR["GET /wml/...<br/>core/wml.ts -> WML 1.1"]
     Router["adapters/router.ts<br/>path -> deck"]
@@ -47,6 +48,7 @@ flowchart LR
   end
   Up[(Wikipedia / Open-Meteo / open.er-api.com)]
   Sim --> API
+  Sim -. "after the deck shows" .-> Weight --> HTTP
   Lite --> LiteR
   WAP --> WmlR
   API & LiteR & WmlR --> Router
@@ -85,7 +87,7 @@ Simulator keyboard: arrow keys for the 5-way pad, Enter = Select, Backspace/Esca
 
 - The byte counter shows the real uncompressed UTF-8 size of the response body. Bytes on the wire differ because of gzip/brotli, HTTP headers and TLS. Back-navigation served from the simulator's cache shows 0 B.
 - `/wml` is standard WML 1.1 output, checked as well-formed XML by property tests. It has not been tested on physical WAP devices or through a WAP gateway. `/lite` has not been tested on physical phones either.
-- The size comparison counts only the normal article's HTML document, with no images, scripts or CSS, so a real page load weighs more. The HTML is fetched in parallel and used only if it arrives before the deck is ready. The first view of an article often lacks the comparison, and later pages of the same article show it once the size is cached.
+- The size comparison counts only the normal article's HTML document, with no images, scripts or CSS, so a real page load weighs more. The simulator requests it from `/api/weight` after the article deck is shown, so it never delays the deck. It shows "measuring..." until the size arrives (often a second or more, since Wikipedia's HTML runs to hundreds of KB) and shows nothing if the request fails. `/lite` and `/wml` do not show the comparison.
 - Only English Wikipedia. Article titles are capped at 60 characters (with a visible "~"), and typed input at 40.
 - Caches live in server memory. On serverless hosting they reset on cold starts, so the "offline" stale fallback works only while an instance stays warm.
 - Free upstream APIs have rate limits. When an upstream fails and nothing is cached, you get an error deck.
