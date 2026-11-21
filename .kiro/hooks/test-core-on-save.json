@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Core tests on save",
+      "description": "Run the pure-core test suite when the agent saves a file under src/core.",
+      "trigger": "PostFileSave",
+      "matcher": "src[\\\\/]core[\\\\/].*",
+      "timeout": 120,
+      "action": { "type": "command", "command": "npm run test:core" }
+    }
+  ]
+}

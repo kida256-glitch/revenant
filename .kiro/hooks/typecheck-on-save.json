@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Typecheck on save",
+      "description": "Run tsc when the agent saves a .ts or .tsx file.",
+      "trigger": "PostFileSave",
+      "matcher": "\\.(ts|tsx)$",
+      "timeout": 120,
+      "action": { "type": "command", "command": "npm run typecheck" }
+    }
+  ]
+}
