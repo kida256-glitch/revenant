@@ -19,10 +19,10 @@
 - [x] 1.12 Definition of Done; commit + push
 
 ## M2 Simulator UI
-- [ ] 2.1 Phone shell, LCD, softkeys, 5-way, keypad, keyboard support (R2, R3)
-- [ ] 2.2 Byte counter, loading/offline/error states, profile persistence (R5, R4.6)
-- [ ] 2.3 Phone-sized responsive layout, ghost styling
-- [ ] 2.4 Definition of Done; commit + push; Vercel checklist
+- [x] 2.1 Phone shell, LCD, softkeys, 5-way, keypad, keyboard support (R2, R3)
+- [x] 2.2 Byte counter, loading/offline/error states, profile persistence (R5, R4.6)
+- [x] 2.3 Phone-sized responsive layout, ghost styling
+- [x] 2.4 Definition of Done; commit + push; Vercel checklist
 
 ## M3 Docs
 - [ ] 3.1 README (what/who, mermaid, run locally, hosted URL placeholder, attribution, limitations, Originality)

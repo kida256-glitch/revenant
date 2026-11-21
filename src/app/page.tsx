@@ -1,3 +1,9 @@
+import Phone from "@/ui/Phone";
+
 export default function Home() {
-  return <main className="p-4 font-mono">Revenant: simulator coming in M2.</main>;
+  return (
+    <main className="min-h-dvh flex items-start justify-center py-4 px-2">
+      <Phone />
+    </main>
+  );
 }
