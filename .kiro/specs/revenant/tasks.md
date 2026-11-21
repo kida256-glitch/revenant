@@ -32,5 +32,5 @@
 - [x] 4.1 core/wml serializer + /wml route + property (well-formed, no control chars, /wml targets)
 - [x] 4.2 core/lite HTML + /lite route + property (no script/img/handlers, unique accesskeys, escaped)
 - [x] 4.3 normalBytes on article pages (parallel, fail open) + simulator line
-- [ ] 4.4 README rewrite
+- [x] 4.4 README rewrite
 - [ ] 4.5 Definition of Done; KIRO_USAGE; commit + push
