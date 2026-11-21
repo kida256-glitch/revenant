@@ -11,6 +11,7 @@
   (5 s timeout, cache, stale fallback). May import core.
 - `src/app/api/deck/route.ts`: the ONLY API: `GET /api/deck?path=...&profile=...`
   returns `{ deck, bytes }`.
+- `src/app/wml/` and `src/app/lite/`: render the same resolved decks via pure core serializers (`core/wml.ts`, `core/lite.ts`).
 - `src/ui/` + `src/app/page.tsx`: simulator. Talks only to `/api/deck`.
 
 ## Conventions

@@ -30,6 +30,7 @@
     "eslint": "^9.30.0",
     "eslint-config-next": "^15.5.0",
     "fast-check": "^4.2.0",
+    "fast-xml-parser": "^5.12.1",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0"

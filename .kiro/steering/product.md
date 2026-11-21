@@ -19,8 +19,10 @@ Bytes per page. Every screen shows the byte size of the deck just loaded.
 About: attribution cards (Wikipedia, Open-Meteo, exchange-rate provider).
 
 ## Out of scope
-MCP server, real WML output, Gemini/LLMs, blockchain, "normal web page weight" comparison,
+MCP server, Gemini/LLMs, blockchain, offline mode,
 Playwright, other languages, accounts, databases.
 
 ## Tone
 Dark shell with subtle ghost/Halloween styling. Plain, short copy on the LCD.
+## M4 additions (in scope)
+Real WML 1.1 at /wml, no-JS HTML at /lite, normal-article-HTML size comparison on Wikipedia article pages.
