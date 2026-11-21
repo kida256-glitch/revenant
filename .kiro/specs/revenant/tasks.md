@@ -25,5 +25,5 @@
 - [x] 2.4 Definition of Done; commit + push; Vercel checklist
 
 ## M3 Docs
-- [ ] 3.1 README (what/who, mermaid, run locally, hosted URL placeholder, attribution, limitations, Originality)
-- [ ] 3.2 Final Definition of Done; commit + push; report
+- [x] 3.1 README (what/who, mermaid, run locally, hosted URL placeholder, attribution, limitations, Originality)
+- [x] 3.2 Final Definition of Done; commit + push; report
