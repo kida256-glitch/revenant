@@ -1,8 +1,18 @@
 # Revenant
 
-Revenant brings back WAP, the 1999 Wireless Application Protocol that served tiny text "decks of cards" to feature phones. A server-side transcoder turns today's web content (Wikipedia, weather, exchange rates) into small, cheap-to-load cards. It serves them three ways: a browser feature-phone simulator, a no-JavaScript HTML version for real feature-phone browsers, and real WML 1.1 for WAP browsers.
+Revenant brings back WAP, the 1999 Wireless Application Protocol that served tiny text "decks of cards" to feature phones. A server-side transcoder turns today's web content (Wikipedia, weather, exchange rates) into small, cheap-to-load cards. It serves them three ways: a browser feature-phone simulator, a no-JavaScript HTML version for real feature-phone browsers, and real WML 1.1 for WAP browsers. An optional AI gateway (Gemini, grounded in Wikipedia, with a non-AI fallback) condenses articles and answers questions in at most 3 cards. Every deck is signed with Ed25519, and a snapshot of signed pages is anchored on the Base Sepolia testnet.
 
 Built for Kiroween 2026 (Resurrection category).
+
+## Built with Kiro
+
+- **Steering:** 5 docs in [.kiro/steering](.kiro/steering) (product, tech, device constraints, external data, testing).
+- **Spec:** one spec in [.kiro/specs/revenant](.kiro/specs/revenant) (requirements, design, tasks).
+- **Hooks:** two PostFileSave hooks in [.kiro/hooks](.kiro/hooks), which run core tests and the typecheck when the agent saves a file.
+- **MCP:** Revenant's own MCP server, used from Kiro through `.kiro/settings/mcp.json`.
+- **Property tests:** fast-check tests written from the spec.
+
+The full log, including the bugs the tests caught, is in [KIRO_USAGE.md](KIRO_USAGE.md).
 
 ## Who it's for
 
@@ -10,12 +20,12 @@ Feature-phone users in Uganda and East Africa who pay for data by the MB. Every 
 
 ## Features
 
-1. **Wikipedia:** search with T9 or multitap typing, then read an article page by page. Article pages also show the size of the normal Wikipedia article HTML next to the deck size.
+1. **Wikipedia:** search with T9 or multitap typing, then read an article page by page. Each article starts with a **Brief (AI)** link that condenses the article into at most 3 cards. In the simulator, article pages also show the size of the normal Wikipedia article HTML next to the deck size.
 2. **Weather:** Open-Meteo current conditions and a 3-day forecast for Kampala, Gulu, Mbarara and Jinja.
 3. **Money:** UGX per USD, EUR, GBP and KES, with an "as of" time.
-4. **Ask:** type a question and get a 3-card answer from the top Wikipedia article summary, labeled with its source.
+4. **Ask:** type a question and get an AI answer grounded in Wikipedia summaries, with a "Read: <article>" link to its cited source. Without AI, it falls back to the plain summary of the top article.
 5. **Settings:** device profile, either Nokia 3310 (14x6 characters) or Generic (20x10).
-6. **About:** attribution cards.
+6. **About:** attribution cards and **Proof**, which shows the latest Base Sepolia anchor.
 
 ## Three ways to load Revenant
 
@@ -85,11 +95,26 @@ npm run dev                  # http://localhost:3000, /lite, /wml
 
 Checks: `npm run typecheck && npm run lint && npm test && npm run build`.
 
-Simulator keyboard: arrow keys for the 5-way pad, Enter = Select, Backspace/Escape = Back, and 0-9, `*`, `#` for the keypad. `#` toggles between T9 and multitap.
+### Environment variables
+
+All are optional. The app runs with none of them set.
+
+| Variable | Purpose | Without it |
+|----------|---------|------------|
+| `REVENANT_CONTACT` | Contact URL or email in the Wikimedia User-Agent | The repo URL is used |
+| `AI_PROVIDER` | `mock` or `gemini` | `mock`: an offline extractive stand-in, no network |
+| `GEMINI_API_KEY` | Gemini API key (server-only) | With `AI_PROVIDER=gemini`, Ask and Brief use the non-AI fallback ("Offline answer") |
+| `GEMINI_MODEL` | Gemini model | `gemini-3.5-flash-lite` |
+| `REVENANT_SIGNING_KEY` | Ed25519 private key for signing decks (`npm run keys:generate`) | Decks are served `unsigned` |
+| `ANCHOR_WALLET_KEY` | Base Sepolia wallet key for `npm run anchor`. Set it in your local shell only, never in Vercel or a file | `npm run anchor` refuses to send (`--dry-run` still works) |
+
+Simulator keyboard: arrow keys for the 5-way pad, Enter = Select, Backspace deletes a character or goes Back, Escape = Back, and 0-9, `*`, `#` for the keypad. `#` toggles between T9 and multitap. Letters type straight into search inputs, without T9.
 
 ## Hosted
 
-`<hosted URL here>`
+[https://revenant-henna.vercel.app/](https://revenant-henna.vercel.app/): [simulator](https://revenant-henna.vercel.app/), [/lite](https://revenant-henna.vercel.app/lite), [/wml/](https://revenant-henna.vercel.app/wml/)
+
+Demo video: <link>
 
 ## AI gateway
 
@@ -136,6 +161,8 @@ Invalid paths, unknown profiles and non-200 pages come back as MCP error results
 }
 ```
 
+Change the paths to the location of your own clone.
+
 The compact web is cheap for agents to read too. A Wikipedia article deck is about 1.3 KB, while the normal article HTML for Kampala is about 735 KB. These are byte counts only. Token savings have not been measured.
 
 ## Attribution
@@ -164,7 +191,7 @@ All application code in this repo was written for this project with Kiro. Third-
 - AI: [Gemini API](https://ai.google.dev/) (Interactions REST API, called with plain `fetch`; no SDK).
 - MCP and chain: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) with [zod](https://zod.dev/) (MCP server), [viem](https://viem.sh/) (anchor script, Base Sepolia), [tsx](https://tsx.is/) (runs the scripts). All are dev dependencies and stay out of the web bundle. Signing uses `node:crypto` (Ed25519).
 - Testing: [Vitest](https://vitest.dev/), [fast-check](https://fast-check.dev/) (property tests), [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) (test-only, validates WML output).
-- Data: Wikipedia REST/Action APIs and article pages, Open-Meteo, open.er-api.com. No API keys, database or accounts.
+- Data: Wikipedia REST/Action APIs and article pages, Open-Meteo, open.er-api.com. No database or accounts; the only API key, for Gemini, is optional.
 - WML 1.1 follows the WAP Forum DTD (`-//WAPFORUM//DTD WML 1.1//EN`).
 
 ## License

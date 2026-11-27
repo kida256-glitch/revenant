@@ -1,5 +1,20 @@
 # Kiro usage log
 
+## Summary
+- **Client:** Kiro IDE only.
+- **Used:** 5 steering docs, 1 spec (requirements, design, tasks), 2 PostFileSave hooks, Revenant's own MCP server used from Kiro, and fast-check property tests (46 tests in total at the last full run).
+- **Not used:** Kiro CLI, Kiro Web, Kiro Crew, custom agents, powers.
+
+## Bugs caught
+- Long Wikipedia titles pushed article paths over the 200-character path cap. Caught by a property test (M1).
+- Raw `]` in `/wml` and `/lite` links. Caught by a full test run (M4).
+- Empty `(UK: , US: )` brackets left after pronunciations were stripped. Seen through the MCP server (M5).
+- Text after the `SOURCES:` line was kept in AI answers. Caught by a property test (M6).
+- Laptop keyboard typing didn't work, and the "signed" badge was red. Found in the user's manual click-through (M5).
+- An Ask answer read as "Kigali" for "capital of uganda". Found in the user's check of the live site after the unit tests had passed (M6).
+
+## Log
+
 - M0: Steering (5 docs), one spec (EARS requirements/design/tasks), two PostFileSave hooks (format checked against kiro.dev/docs/hooks). Worked: single-pass spec. Ambiguity decisions: one screen = one card; settings links use `set:profile=` handled client-side; rates from open.er-api.com.
 - M1: Spec tasks drove order; PostFileSave hooks ran core tests/typecheck on save. Property test 4 caught a real bug (long titles overflowed the 200-char path cap); fixed with TITLE_MAX=60. Vitest ran without approving esbuild's install script. Decision: response 'bytes' is a self-consistent UTF-8 length of the uncompressed body; data fetches use in-memory cache + next.revalidate=300.
 - M2: Simulator built as one client component over the pure nav/keypad reducers from core, so no new logic needed tests. Typecheck hook caught nothing new. Decisions: back-navigation reuses a client-side deck cache (shows 'cached, 0 B used'); network failure renders a local 'service unavailable' deck; counter measures the received body with TextEncoder. Not verified in a real browser (no Playwright by request).
@@ -29,3 +44,4 @@ Property test 4 (hostile JSON -> valid in-budget deck) generated very long Wikip
 - Post-M5: the MCP server (`render_deck` on a Wikipedia article) revealed a sanitizer bug: pronunciation markup left empty or label-only brackets like `(UK: , US: )`. Fixed with a property test (no junk groups remain, every real word kept in order). The signed badge now verifies in the browser with Web Crypto Ed25519 instead of uploading the body to /api/verify.
 - Anchor done: Base Sepolia tx 0xc3c10b70dbe10392a7b824ae300ae395e832241f93e6248b59cd411fe9bda40b (root dafff9a2...38e8f), committed in anchors/latest.json. Follow-up fixes: laptop keyboard typing (document-level capture listener, letters type straight into inputs) and badge colors (green signed, red invalid, grey otherwise).
 - M6 AI gateway: Gemini docs had moved to the Interactions API (POST /v1beta/interactions, x-goog-api-key, Api-Revision 2026-05-20, model_output steps), which differs from the older generateContent API I would have guessed. Model gemini-3.5-flash-lite. Grounded Ask (top 1-2 summaries) and Brief (AI) with fallback, per-IP limit and secret-leak filter. The first property run caught the non-AI Ask fallback exceeding 3 cards, which is expected: only AI answers are capped.
+- M6 follow-up (Kigali fix): AI answers cite only sources the model says it used, from the supplied list only (top article by default). The source is a whole 'Read: <title>' link kept on the last card next to answer text, never alone. A second search hit is sent to the model only if its title shares a non-stopword with the question. Regression test and a no-loose-source property added.
