@@ -115,3 +115,31 @@ describe("budget helpers", () => {
     expect(validDeck(deck, PROFILES.nokia3310)).toBe(true);
   });
 });
+
+describe("sanitize: empty bracket groups", () => {
+  const LEFTOVER = /\(([^()[\]]*)\)|\[([^()[\]]*)\]/g;
+  const isJunk = (inner: string) => /^[\s,;:.\-/'"|?!_*~]*$/.test(inner.replace(/\b[A-Za-z]{1,12}:/g, ""));
+  const word = fc.stringMatching(/^[A-Za-z0-9]{1,10}$/);
+  const junk = fc
+    .tuple(fc.constantFrom("(", "["), fc.array(fc.constantFrom("UK:", "US:", "listen:", ",", ";", " ", "/", "'", "-", "?", ""), { maxLength: 6 }))
+    .map(([o, parts]) => `${o}${parts.join(" ")}${o === "(" ? ")" : "]"}`);
+  const seg = fc.oneof(word.map((w) => ({ w })), junk.map((j) => ({ j })), fc.constantFrom({ p: "," }, { p: "." }));
+
+  it("property: no empty or label-only groups remain; every real word kept in order", () => {
+    fc.assert(
+      fc.property(fc.array(seg, { maxLength: 30 }), fc.constantFrom("", "<span>(</span>", "<b></b>"), (segs, tag) => {
+        const raw = segs.map((s) => ("w" in s ? s.w : "j" in s ? s.j + tag : s.p)).join(" ");
+        const out = sanitize(raw);
+        for (const m of out.matchAll(LEFTOVER)) expect(isJunk(m[1] ?? m[2] ?? "")).toBe(false);
+        const words = segs.flatMap((s) => ("w" in s ? [s.w] : []));
+        expect(out.match(/[A-Za-z0-9]+/g) ?? []).toEqual(words);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("cleans the Wikipedia pronunciation residue and keeps real groups", () => {
+    expect(sanitize("Kampala (UK: , US: ) is the capital ( ) of Uganda [ ] .")).toBe("Kampala is the capital of Uganda.");
+    expect(sanitize("Kampala (born 1962) is (( ) )big")).toBe("Kampala (born 1962) is big");
+  });
+});

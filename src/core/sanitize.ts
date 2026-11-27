@@ -25,6 +25,29 @@ function stripTags(s: string): string {
     .replace(/<[^>]*>?/g, " ");
 }
 
+/** Bracket content that is only labels ("UK:", "US:") and separators/punctuation. */
+const LABEL = /\b[A-Za-z]{1,12}:/g;
+const JUNK = /^[\s,;:.\-/'"|?!_*~]*$/;
+const GROUPS = [/\(([^()[\]]*)\)/g, /\[([^()[\]]*)\]/g];
+
+/**
+ * Remove bracket groups left empty or label-only after markup/pronunciation
+ * removal, e.g. "(UK: , US: )", "()", "[ ]"; then tidy the spacing.
+ */
+export function dropEmptyGroups(s: string): string {
+  for (let i = 0; i < 8; i++) {
+    const before = s;
+    for (const g of GROUPS) s = s.replace(g, (m, inner: string) => (JUNK.test(inner.replace(LABEL, "")) ? " " : m));
+    if (s === before) break;
+  }
+  return s
+    .replace(/\s+/g, " ")
+    .replace(/([([]) /g, "$1")
+    .replace(/ ([,.;:!?)\]])/g, "$1")
+    .replace(/([,;])(?:\s*[,;])+/g, "$1")
+    .trim();
+}
+
 /**
  * Turn untrusted input into plain printable ASCII text: markup and control
  * characters removed, whitespace collapsed, length capped. A cap is marked
@@ -42,7 +65,7 @@ export function sanitize(input: unknown, max: number = MAX_TEXT): string {
   s = s.replace(/[\u2018-\u201e\u2013\u2014\u2212\u2026\u00b0\u00d7]/g, (c) => PUNCT[c] ?? "?");
   s = s.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ");
   s = s.replace(/[^\x20-\x7e]/gu, "?");
-  s = s.replace(/\s+/g, " ").trim();
+  s = dropEmptyGroups(s);
   const cut = s.length > limit;
   if (cut) s = s.slice(0, Math.max(0, limit - 2)).trimEnd() + " ~";
   return s;
