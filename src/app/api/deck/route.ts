@@ -1,6 +1,7 @@
 import { envelope, notFoundDeck } from "@/core/budget";
 import { DEFAULT_PROFILE, isProfileId, PROFILES } from "@/core/types";
 import { resolveDeck } from "@/adapters/router";
+import { signatureHeaders } from "@/adapters/sign";
 
 export async function GET(req: Request): Promise<Response> {
   const params = new URL(req.url).searchParams;
@@ -21,6 +22,7 @@ export async function GET(req: Request): Promise<Response> {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": status === 200 && !deck.offline ? "public, max-age=60" : "no-store",
       "X-Content-Type-Options": "nosniff",
+      ...signatureHeaders(body),
     },
   });
 }

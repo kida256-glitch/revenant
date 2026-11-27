@@ -3,6 +3,7 @@ import { DEFAULT_PROFILE, PROFILES } from "@/core/types";
 import { toWml, WML_TYPE } from "@/core/wml";
 import { resolveDeck } from "@/adapters/router";
 import { pathFromRequest } from "@/adapters/request";
+import { signatureHeaders } from "@/adapters/sign";
 
 export async function GET(req: Request): Promise<Response> {
   let body: string;
@@ -18,6 +19,6 @@ export async function GET(req: Request): Promise<Response> {
   }
   return new Response(body, {
     status,
-    headers: { "Content-Type": WML_TYPE, "Cache-Control": status === 200 ? "public, max-age=60" : "no-store" },
+    headers: { "Content-Type": WML_TYPE, "Cache-Control": status === 200 ? "public, max-age=60" : "no-store", ...signatureHeaders(body) },
   });
 }

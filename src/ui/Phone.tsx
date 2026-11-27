@@ -8,6 +8,7 @@ import { keypadText, type Key } from "@/core/t9";
 import { DEFAULT_PROFILE, isProfileId, PROFILES, type Card, type Deck, type ProfileId } from "@/core/types";
 
 type Status = "loading" | "ok" | "offline" | "error";
+type Sig = "signed" | "unsigned" | "checking" | null;
 
 const KEYPAD: { key: Key; sub: string }[] = [
   { key: "1", sub: ".,?" }, { key: "2", sub: "abc" }, { key: "3", sub: "def" },
@@ -55,9 +56,10 @@ export default function Phone() {
   const [cached, setCached] = useState(false);
   const [weight, setWeight] = useState<"measuring" | number | null>(null);
   const weights = useRef(new Map<string, number>());
+  const [signed, setSigned] = useState<Sig>(null);
   const [session, setSession] = useState(0);
   const navRef = useRef(nav);
-  const cache = useRef(new Map<string, { deck: Deck; bytes: number }>());
+  const cache = useRef(new Map<string, { deck: Deck; bytes: number; sig: Sig }>());
 
   const commit = useCallback((s: NavState) => {
     navRef.current = s;
@@ -92,17 +94,18 @@ export default function Phone() {
 
   const load = useCallback(async (path: string, pid: ProfileId) => {
     const key = `${pid}|${path}`;
-    const apply = (deck: Deck, n: number, fromCache: boolean, st: Status) => {
+    const apply = (deck: Deck, n: number, fromCache: boolean, st: Status, sig: Sig) => {
       if (currentPath(navRef.current) !== path) return;
       commit(navLoaded(navRef.current, deck));
       setBytes(n);
       setCached(fromCache);
+      setSigned(sig);
       if (st === "error") setWeight(null);
       else measure(path);
       setStatus(st);
     };
     const hit = cache.current.get(key);
-    if (hit) return apply(hit.deck, hit.bytes, true, hit.deck.offline ? "offline" : hit.deck.error ? "error" : "ok");
+    if (hit) return apply(hit.deck, hit.bytes, true, hit.deck.offline ? "offline" : hit.deck.error ? "error" : "ok", hit.sig);
     setStatus("loading");
     try {
       const res = await fetch(`/api/deck?path=${encodeURIComponent(path)}&profile=${pid}`);
@@ -112,10 +115,23 @@ export default function Phone() {
       const deck = body.deck;
       if (!deck || !Array.isArray(deck.cards) || deck.cards.length === 0) throw new Error("bad deck");
       setSession((x) => x + n);
-      if (res.ok && !deck.offline) cache.current.set(key, { deck, bytes: n });
-      apply(deck, n, false, deck.offline ? "offline" : deck.error ? "error" : "ok");
+      const sigHeader = res.headers.get("X-Revenant-Signature");
+      const sig: Sig = sigHeader && sigHeader !== "unsigned" ? "checking" : "unsigned";
+      const entry: { deck: Deck; bytes: number; sig: Sig } = { deck, bytes: n, sig };
+      if (res.ok && !deck.offline) cache.current.set(key, entry);
+      apply(deck, n, false, deck.offline ? "offline" : deck.error ? "error" : "ok", sig);
+      if (sig === "checking" && sigHeader) {
+        // Non-blocking: ask the server to check the exact body against its public key.
+        const done = (v: Sig) => {
+          entry.sig = v;
+          if (currentPath(navRef.current) === path) setSigned(v);
+        };
+        fetch(`/api/verify?${new URLSearchParams({ body: text, sig: sigHeader })}`)
+          .then((r) => r.json() as Promise<{ valid?: unknown }>)
+          .then((j) => done(j.valid === true ? "signed" : "unsigned"), () => done("unsigned"));
+      }
     } catch {
-      apply(unavailableDeck(path, "Network", PROFILES[pid]), 0, false, "error");
+      apply(unavailableDeck(path, "Network", PROFILES[pid]), 0, false, "error", null);
     }
   }, [commit, measure]);
 
@@ -197,6 +213,8 @@ export default function Phone() {
           {cached && status !== "loading" ? " (cached, 0 B used)" : ""}
           {status === "offline" && <span className="badge">OFFLINE</span>}
           {status === "error" && <span className="badge">ERROR</span>}
+          {status !== "loading" && signed === "signed" && <span className="badge" title="Ed25519 signature verified">&#10004; signed</span>}
+          {status !== "loading" && signed === "unsigned" && <span className="badge">unsigned</span>}
         </div>
         {weight !== null && bytes !== null && status !== "loading" && (
           <div className="meter-sub">

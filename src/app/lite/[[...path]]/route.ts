@@ -3,6 +3,7 @@ import { toLite } from "@/core/lite";
 import { DEFAULT_PROFILE, PROFILES } from "@/core/types";
 import { resolveDeck } from "@/adapters/router";
 import { pathFromRequest } from "@/adapters/request";
+import { signatureHeaders } from "@/adapters/sign";
 
 export async function GET(req: Request): Promise<Response> {
   let body: string;
@@ -22,6 +23,7 @@ export async function GET(req: Request): Promise<Response> {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": status === 200 ? "public, max-age=60" : "no-store",
       "X-Content-Type-Options": "nosniff",
+      ...signatureHeaders(body),
     },
   });
 }
