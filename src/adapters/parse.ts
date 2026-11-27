@@ -1,5 +1,5 @@
 import { menuCards, pageDeck, MAX_PATH } from "@/core/budget";
-import { paginate } from "@/core/fit";
+import { bodyRows, fitLine, paginate } from "@/core/fit";
 import { sanitize } from "@/core/sanitize";
 import type { Card, Deck, Link, Profile } from "@/core/types";
 
@@ -54,7 +54,9 @@ export function parseWikiArticle(json: unknown, rawTitle: string, p: number, pro
   if (!text) {
     return simpleDeck(pathFor(0), "Wikipedia", `No article text for "${t}".`, profile, [{ label: "Search", href: "/wiki" }]);
   }
-  const cards = [...paginate(t, text, profile, "a"), ...attributionCard(t, profile)];
+  const brief = `/wiki/brief/${encodeURIComponent(title)}`;
+  const lead = p === 0 && brief.length <= MAX_PATH ? menuCards(t, "", [{ label: "Brief (AI)", href: brief }], profile, { idPrefix: "b" }) : [];
+  const cards = [...lead, ...paginate(t, text, profile, "a"), ...attributionCard(t, profile)];
   return pageDeck(cards.map((c, i) => ({ ...c, id: `a${i}` })), p, pathFor, profile);
 }
 
@@ -62,15 +64,62 @@ function attributionCard(title: string, profile: Profile): Card[] {
   return paginate("Source", `Wikipedia: ${title}. CC BY-SA 4.0.`, profile, "s");
 }
 
+/** Titles of the top `n` search hits. */
+export function topTitles(json: unknown, n: number): string[] {
+  return arr(obj(json).pages, n).map((p) => sanitize(obj(p).title, TITLE_MAX)).filter(Boolean);
+}
+/** Plain summary text from a Wikipedia page/summary response ("" if none). */
+export function summaryText(json: unknown, max = 2000): { title: string; text: string } {
+  const o = obj(json);
+  return { title: sanitize(o.title, 80), text: sanitize(o.extract, max) };
+}
+/** Characters to ask the model for so an answer fits 3 cards of this profile. */
+export function aiChars(profile: Profile): number {
+  return Math.max(60, Math.floor(3 * bodyRows(profile) * profile.cols * 0.55) - 40);
+}
+export const ANSWER_CARDS = 3;
+/**
+ * Answer deck of at most 3 cards: (notice) body, "Source: <titles>", then links.
+ * The body is shortened word by word, with a visible "~", until it fits.
+ */
+export function answerDeck(
+  path: string,
+  kind: "ask" | "brief",
+  body: string,
+  sources: string[],
+  profile: Profile,
+  opts: { ai: boolean; notice?: string; links?: Link[] },
+): Deck {
+  const title = fitLine(opts.ai ? (kind === "ask" ? "AI answer" : "AI brief") : kind === "ask" ? "Answer" : "Brief", profile.cols);
+  const lead = opts.ai ? "" : `${opts.notice ? sanitize(opts.notice, 60) + " " : ""}Offline answer. `;
+  const src = sanitize(sources.map((s) => sanitize(s, 80)).filter(Boolean).join("; ") || "Wikipedia", 50);
+  const tail = ` Source: ${src}.`;
+  const words = sanitize(body).split(" ").filter(Boolean);
+  const build = (n: number, links: Link[]) =>
+    menuCards(title, `${lead}${words.slice(0, n).join(" ")}${n < words.length ? " ~" : ""}${tail}`.trim(), links, profile, { idPrefix: "q" });
+  for (const links of [opts.links ?? [], []]) {
+    let lo = 0;
+    let hi = words.length;
+    if (build(0, links).length > ANSWER_CARDS) continue;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (build(mid, links).length <= ANSWER_CARDS) lo = mid;
+      else hi = mid - 1;
+    }
+    return pageDeck(build(lo, links), 0, () => path, profile);
+  }
+  return pageDeck(menuCards(title, `${lead}Source: Wikipedia.`, [], profile, { idPrefix: "q" }).slice(0, ANSWER_CARDS), 0, () => path, profile);
+}
 /** Title of the top search hit, or "" if none. */
 export function topTitle(json: unknown): string {
   return sanitize(obj(arr(obj(json).pages, 1)[0]).title, TITLE_MAX);
 }
 
-export function parseAsk(json: unknown, question: string, path: string, profile: Profile): Deck {
+export function parseAsk(json: unknown, question: string, path: string, profile: Profile, notice = ""): Deck {
   const o = obj(json);
   const title = sanitize(o.title, 80);
-  const text = sanitize(o.extract, 3000);
+  const extract = sanitize(o.extract, 3000);
+  const text = extract && notice ? `${sanitize(notice, 80)} ${extract}` : extract;
   if (!title || !text) {
     return simpleDeck(path, "Ask", `No answer found for "${sanitize(question, 40)}".`, profile, [{ label: "Ask again", href: "/ask" }]);
   }

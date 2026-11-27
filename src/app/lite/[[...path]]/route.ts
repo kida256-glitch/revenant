@@ -2,7 +2,7 @@ import { notFoundDeck } from "@/core/budget";
 import { toLite } from "@/core/lite";
 import { DEFAULT_PROFILE, PROFILES } from "@/core/types";
 import { resolveDeck } from "@/adapters/router";
-import { pathFromRequest } from "@/adapters/request";
+import { clientIp, pathFromRequest } from "@/adapters/request";
 import { signatureHeaders } from "@/adapters/sign";
 
 export async function GET(req: Request): Promise<Response> {
@@ -10,7 +10,7 @@ export async function GET(req: Request): Promise<Response> {
   let status = 200;
   try {
     const { path, profile } = pathFromRequest(req.url, "/lite");
-    const r = await resolveDeck(path, profile);
+    const r = await resolveDeck(path, profile, undefined, { ip: clientIp(req) });
     status = r.status;
     body = toLite(r.deck, profile.id);
   } catch {

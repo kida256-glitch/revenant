@@ -2,6 +2,7 @@ import { envelope, notFoundDeck } from "@/core/budget";
 import { DEFAULT_PROFILE, isProfileId, PROFILES } from "@/core/types";
 import { resolveDeck } from "@/adapters/router";
 import { signatureHeaders } from "@/adapters/sign";
+import { clientIp } from "@/adapters/request";
 
 export async function GET(req: Request): Promise<Response> {
   const params = new URL(req.url).searchParams;
@@ -10,7 +11,7 @@ export async function GET(req: Request): Promise<Response> {
   let status = 200;
   let deck;
   try {
-    ({ deck, status } = await resolveDeck(params.get("path") ?? "/", profile));
+    ({ deck, status } = await resolveDeck(params.get("path") ?? "/", profile, undefined, { ip: clientIp(req) }));
   } catch {
     deck = notFoundDeck("/", profile);
     status = 500;
