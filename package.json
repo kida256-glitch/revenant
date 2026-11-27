@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:core": "vitest run src/core"
+    "test:core": "vitest run src/core",
+    "mcp": "tsx --tsconfig tsconfig.json scripts/mcp-server.ts"
   },
   "dependencies": {
     "next": "^15.5.0",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.1.0",
@@ -32,7 +34,10 @@
     "fast-check": "^4.2.0",
     "fast-xml-parser": "^5.12.1",
     "tailwindcss": "^4.1.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.0",
-    "vitest": "^3.2.0"
+    "viem": "^2.58.8",
+    "vitest": "^3.2.0",
+    "zod": "^4.6.7"
   }
 }

@@ -34,3 +34,9 @@
 - [x] 4.3 normalBytes on article pages (parallel, fail open) + simulator line
 - [x] 4.4 README rewrite
 - [x] 4.5 Definition of Done; KIRO_USAGE; commit + push
+
+## M5 Agents and signatures
+- [x] 5.1 Read-only stdio MCP server (render_deck, measure_deck) + tests
+- [ ] 5.2 Ed25519 signed responses, /api/verify, badge, properties
+- [ ] 5.3 Base Sepolia anchor script, anchors/latest.json, /about/proof, Merkle test
+- [ ] 5.4 README, KIRO_USAGE, Definition of Done

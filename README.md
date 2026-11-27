@@ -77,6 +77,30 @@ Simulator keyboard: arrow keys for the 5-way pad, Enter = Select, Backspace/Esca
 
 `<hosted URL here>`
 
+## Use it from an AI agent
+
+`scripts/mcp-server.ts` is a read-only stdio [MCP](https://modelcontextprotocol.io) server built on the same router, adapters and core as `/api/deck`. It has two tools:
+
+- `render_deck(path, profile?)` returns the deck as plain-text cards plus its byte size.
+- `measure_deck(path, profile?)` returns response bytes, deck bytes, card count, the largest card, and whether the card (1,000 B) and deck (1,400 B) budgets hold.
+
+Invalid paths, unknown profiles and non-200 pages come back as MCP error results. There are no write tools and no secrets. Run it with `npm run --silent mcp` (`--silent` keeps npm's banner off stdout). Kiro config (`.kiro/settings/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "revenant": {
+      "command": "node",
+      "args": ["C:\\dev\\revenant\\node_modules\\tsx\\dist\\cli.mjs", "--tsconfig", "C:\\dev\\revenant\\tsconfig.json", "C:\\dev\\revenant\\scripts\\mcp-server.ts"],
+      "disabled": false,
+      "autoApprove": ["render_deck", "measure_deck"]
+    }
+  }
+}
+```
+
+The compact web is cheap for agents to read too. A Wikipedia article deck is about 1.3 KB, while the normal article HTML for Kampala is about 735 KB. These are byte counts only. Token savings have not been measured.
+
 ## Attribution
 
 - Text from Wikipedia, CC BY-SA 4.0. Each article card shows its source title.

@@ -9,8 +9,9 @@
   Card/deck model, text fitting + pagination, byte budgeting, T9/multitap, navigation state machine.
 - `src/adapters/`: pure `parseX(json) -> Deck` functions plus thin fetch wrappers
   (5 s timeout, cache, stale fallback). May import core.
-- `src/app/api/deck/route.ts`: the ONLY API: `GET /api/deck?path=...&profile=...`
-  returns `{ deck, bytes }`.
+- `src/app/api/deck/route.ts`: the deck API: `GET /api/deck?path=...&profile=...`
+  returns `{ deck, bytes }`. Also `/api/weight` (article HTML size) and `/api/verify` (signature check).
+- `src/mcp/` + `scripts/`: read-only MCP server and local scripts (tsx). Never in the Next bundle.
 - `src/app/wml/` and `src/app/lite/`: render the same resolved decks via pure core serializers (`core/wml.ts`, `core/lite.ts`).
 - `src/ui/` + `src/app/page.tsx`: simulator. Talks only to `/api/deck`.
 
