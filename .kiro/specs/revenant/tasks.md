@@ -39,4 +39,4 @@
 - [x] 5.1 Read-only stdio MCP server (render_deck, measure_deck) + tests
 - [x] 5.2 Ed25519 signed responses, /api/verify, badge, properties
 - [x] 5.3 Base Sepolia anchor script, anchors/latest.json, /about/proof, Merkle test
-- [ ] 5.4 README, KIRO_USAGE, Definition of Done
+- [x] 5.4 README, KIRO_USAGE, Definition of Done

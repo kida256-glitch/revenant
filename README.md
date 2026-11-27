@@ -35,10 +35,16 @@ flowchart LR
     Sim["Simulator<br/>src/ui/Phone.tsx"]
     Lite["Feature-phone browser"]
     WAP["WAP browser"]
+    Agent["AI agent<br/>(MCP stdio)"]
   end
+  MCP["scripts/mcp-server.ts<br/>render_deck, measure_deck"]
+  Anchor["scripts/anchor.ts<br/>(local only)"]
+  Chain[(Base Sepolia testnet)]
   subgraph Server["Next.js 15 server"]
     API["GET /api/deck<br/>JSON {deck, bytes}"]
     Weight["GET /api/weight?title=<br/>{normalBytes}"]
+    Verify["GET /api/verify<br/>{valid, keyId, publicKey}"]
+    Sign["adapters/sign.ts<br/>Ed25519 over exact body bytes"]
     LiteR["GET /lite/...<br/>core/lite.ts -> HTML"]
     WmlR["GET /wml/...<br/>core/wml.ts -> WML 1.1"]
     Router["adapters/router.ts<br/>path -> deck"]
@@ -52,6 +58,11 @@ flowchart LR
   Lite --> LiteR
   WAP --> WmlR
   API & LiteR & WmlR --> Router
+  API & LiteR & WmlR -- "X-Revenant-Signature" --> Sign
+  Sim -. "badge" .-> Verify --> Sign
+  Agent --> MCP --> Router
+  Anchor -- "fetch + verify" --> API & LiteR
+  Anchor -- "Merkle root + public key" --> Chain
   Router --> HTTP --> Up
   Router --> Parse --> Core
   Sim -. "nav + keypad reducers" .-> Core
@@ -76,6 +87,16 @@ Simulator keyboard: arrow keys for the 5-way pad, Enter = Select, Backspace/Esca
 ## Hosted
 
 `<hosted URL here>`
+
+## Signed cards
+
+WAP 1.x had WTLS, a security layer between the phone and the gateway. Revenant revives the idea at the content level:
+
+- **What is signed.** Every response from `/api/deck`, `/lite` and `/wml` carries `X-Revenant-Signature`, an Ed25519 signature (base64) over the exact response body bytes, plus `X-Revenant-Key-Id` (first 16 hex digits of the SHA-256 of the public key). The private key comes from the server-only env var `REVENANT_SIGNING_KEY`. Without it, responses say `X-Revenant-Signature: unsigned` and local dev still works. `npm run keys:generate` prints a new key pair to the terminal and writes no file.
+- **Checking.** `GET /api/verify?body=...&sig=...` returns `{ valid, keyId, publicKey }`, or a small JSON error. The simulator calls it after each fresh deck and shows "&#10004; signed" or "unsigned" next to the byte counter. Property tests check that flipping any byte of a signed deck fails verification and that hostile input to the verifier always returns JSON.
+- **Anchor.** `npm run anchor -- <base URL>` runs only on your machine. It fetches three demo pages (`/`, `/lite`, `/wiki/a/Kampala`) and checks each signature through `/api/verify` and again locally. It then builds a SHA-256 Merkle root of the exact signed bodies and sends a zero-value Base Sepolia transaction to its own address with `revenant-anchor:v1;root=...;key=...` in the data field. The wallet key is read only from `ANCHOR_WALLET_KEY` in your shell. The result (root, leaf hashes, paths, signatures, tx hash, time, public key) goes to `anchors/latest.json`, which is committed and shown on **About > Proof** in the simulator, with a link to the transaction on sepolia.basescan.org.
+- **What the anchor proves.** Pages whose bodies hash to those leaves existed, signed by that key, no later than the transaction's block time. Anyone can recompute the leaves and root from the saved bodies and compare them with the on-chain data.
+- **What it does not prove.** It covers only that one snapshot. Weather, rates and Wikipedia change, so today's responses won't match the anchored hashes. Verify a saved copy, not a fresh fetch. It doesn't prove the content is true, only who signed it and when. It runs on testnet only, which carries no economic guarantee. Anyone holding the private key can sign, and `/api/verify` trusts only the server's current key.
 
 ## Use it from an AI agent
 
@@ -116,6 +137,7 @@ The compact web is cheap for agents to read too. A Wikipedia article deck is abo
 - Caches live in server memory. On serverless hosting they reset on cold starts, so the "offline" stale fallback works only while an instance stays warm.
 - Free upstream APIs have rate limits. When an upstream fails and nothing is cached, you get an error deck.
 - There are no browser end-to-end tests, only unit and property tests.
+- The signature badge relies on the server's own `/api/verify`, so it detects corruption or tampering between server and simulator, not a compromised server. The badge check also re-sends the deck body (a few KB) that the byte counter doesn't count. The "View tx" link works in the simulator only, because `/lite` and `/wml` map external links to Home.
 
 ## Originality
 
@@ -123,6 +145,7 @@ All application code in this repo was written for this project with Kiro. Third-
 
 - Frameworks: [Next.js 15](https://nextjs.org/) (App Router), [React 19](https://react.dev/), [Tailwind CSS v4](https://tailwindcss.com/) (simulator only).
 - Language and tooling: TypeScript 5, ESLint 9 with `eslint-config-next`.
+- MCP and chain: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) with [zod](https://zod.dev/) (MCP server), [viem](https://viem.sh/) (anchor script, Base Sepolia), [tsx](https://tsx.is/) (runs the scripts). All are dev dependencies and stay out of the web bundle. Signing uses `node:crypto` (Ed25519).
 - Testing: [Vitest](https://vitest.dev/), [fast-check](https://fast-check.dev/) (property tests), [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) (test-only, validates WML output).
 - Data: Wikipedia REST/Action APIs and article pages, Open-Meteo, open.er-api.com. No API keys, database or accounts.
 - WML 1.1 follows the WAP Forum DTD (`-//WAPFORUM//DTD WML 1.1//EN`).

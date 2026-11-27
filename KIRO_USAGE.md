@@ -18,3 +18,10 @@ Property test 4 (hostile JSON -> valid in-budget deck) generated very long Wikip
 - 4.3 normalBytes: article HTML fetched in parallel and used only if settled before the deck (fail open). Surprise: the 735 KB Wikipedia HTML is slower than the API, so the first view usually lacks the comparison; it appears from the cache on later loads.
 - 4.4 README rewritten (three ways to load, honest limitations). 4.5 Definition of Done: 19/19 tests, typecheck, lint, build green.
 - Surprise: `npm run dev` must run via a background process tool, not a plain shell call; and build had to wait until the dev server was stopped to avoid sharing `.next`.
+
+## M5 Agents, signatures, anchor
+- 5.1 MCP: read-only stdio server (`render_deck`, `measure_deck`) via @modelcontextprotocol/sdk 1.32 `registerTool`, tested in-process with InMemoryTransport (exact tool list; hostile paths give `isError` results). Kiro blocked writing `.kiro/settings/mcp.json`, so the config is in the README for the user to add.
+- 5.2 Signing: Ed25519 over exact body bytes with `node:crypto`, headers on /api/deck, /lite and /wml, `/api/verify`, badge. Properties: any single-byte change fails verification (300 runs); hostile verifier input always returns JSON. Checked live against a production build with a throwaway key: all three routes valid, tampered bodies rejected.
+- 5.3 Anchor: viem 2.58 `baseSepolia` (RPC sepolia.base.org, explorer sepolia.basescan.org), Merkle root with a test vector computed independently with .NET SHA256, `/about/proof` deck, external links open via a new nav `open` effect. `--dry-run` against localhost verified all three pages; the real transaction is left to the user.
+- 5.4 README (Signed cards, diagram, Originality), Definition of Done.
+- Surprises: in PowerShell `H` is an alias for Get-History, which broke an inline SHA helper. Parallel tool calls ran out of order once (a build raced `next start`, and an append raced a file write). Multi-line PowerShell commands sometimes returned no output and had to be rerun. The full test run caught a real M4.1 bug (raw `]` in /wml links).
