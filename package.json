@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:core": "vitest run src/core",
     "mcp": "tsx --tsconfig tsconfig.json scripts/mcp-server.ts",
-    "keys:generate": "tsx scripts/keys-generate.ts"
+    "keys:generate": "tsx scripts/keys-generate.ts",
+    "anchor": "tsx --tsconfig tsconfig.json scripts/anchor.ts"
   },
   "dependencies": {
     "next": "^15.5.0",

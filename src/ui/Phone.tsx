@@ -148,6 +148,7 @@ export default function Phone() {
     const res = navReduce(navRef.current, key);
     commit(res.state);
     const eff = res.effect;
+    if (eff?.type === "open" && eff.url.startsWith("https://")) window.open(eff.url, "_blank", "noopener,noreferrer");
     if (eff?.type === "load") void load(eff.path, res.state.profile);
     if (eff?.type === "profile") {
       localStorage.setItem("revenant.profile", eff.id);

@@ -11,7 +11,7 @@ export interface NavState {
   profile: ProfileId;
 }
 
-export type Effect = { type: "load"; path: string } | { type: "profile"; id: ProfileId };
+export type Effect = { type: "load"; path: string } | { type: "profile"; id: ProfileId } | { type: "open"; url: string };
 
 export interface NavResult {
   state: NavState;
@@ -80,6 +80,8 @@ function follow(s: NavState, href: string): NavResult {
     if (isProfileId(id)) return { state: { ...s, profile: id }, effect: { type: "profile", id } };
     return { state: s };
   }
+  // External links (e.g. the block explorer on /about/proof) open outside the phone.
+  if (href.startsWith("https://")) return { state: s, effect: { type: "open", url: href } };
   if (!href.startsWith("/")) return { state: s };
   return go(s, href);
 }

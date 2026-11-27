@@ -4,6 +4,7 @@ import { sanitize } from "@/core/sanitize";
 import type { Deck, Profile } from "@/core/types";
 import { PROFILES } from "@/core/types";
 import { getJson as defaultGet, type GetJson } from "./http";
+import { latestAnchor } from "./proof";
 import { parseAsk, parseRates, parseWeather, parseWikiArticle, parseWikiSearch, TITLE_MAX, topTitle } from "./parse";
 
 export const CITIES: Record<string, { name: string; lat: number; lon: number }> = {
@@ -119,8 +120,17 @@ async function route(path: string, profile: Profile, get: GetJson): Promise<Reso
   if (a === "about" && !b) {
     return {
       status: 200,
-      deck: staticDeck(path, "About", "", Object.entries(ABOUT).map(([id, x], i) => ({ label: `${i + 1} ${x.title}`, href: `/about/${id}` })), profile),
+      deck: staticDeck(path, "About", "", [
+        ...Object.entries(ABOUT).map(([id, x], i) => ({ label: `${i + 1} ${x.title}`, href: `/about/${id}` })),
+        { label: `${Object.keys(ABOUT).length + 1} Proof`, href: "/about/proof" },
+      ], profile),
     };
+  }
+  if (a === "about" && b === "proof" && !c) {
+    const an = latestAnchor();
+    if (!an) return { status: 200, deck: staticDeck(path, "Proof", "No anchor yet. Run npm run anchor.", [{ label: "Home", href: "/" }], profile) };
+    const text = `Snapshot anchored on Base Sepolia testnet ${an.timestamp} UTC. Pages: ${an.pages.join(" ") || "?"}. Key ${an.keyId}. Root ${an.root}. Tx ${an.txHash}`;
+    return { status: 200, deck: staticDeck(path, "Proof", text, [{ label: "View tx", href: an.explorerUrl }, { label: "Home", href: "/" }], profile) };
   }
   if (a === "about" && b && !c) {
     const item = ABOUT[b];
