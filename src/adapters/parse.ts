@@ -78,9 +78,21 @@ export function aiChars(profile: Profile): number {
   return Math.max(60, Math.floor(3 * bodyRows(profile) * profile.cols * 0.55) - 40);
 }
 export const ANSWER_CARDS = 3;
+const STOP = new Set("a an and are as at be by did do does for from has have how in is it of on or the to was were what when where which who why with about tell me".split(" "));
+/** Lowercase non-stopword tokens. */
+export function keywords(s: string): string[] {
+  return (sanitize(s, 200).toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 1 && !STOP.has(w));
+}
+/** A search hit is relevant when its title shares at least one non-stopword with the question. */
+export function relevant(title: string, question: string): boolean {
+  const q = new Set(keywords(question));
+  return keywords(title).some((w) => q.has(w));
+}
 /**
- * Answer deck of at most 3 cards: (notice) body, "Source: <titles>", then links.
- * The body is shortened word by word, with a visible "~", until it fits.
+ * Answer deck of at most 3 cards: (notice +) body, then one "Read: <title>" link
+ * per cited source, on the last card together with body text. The source is a
+ * whole link, so it can never be split across cards. The body is shortened word
+ * by word, with a visible "~", until it fits.
  */
 export function answerDeck(
   path: string,
@@ -88,27 +100,28 @@ export function answerDeck(
   body: string,
   sources: string[],
   profile: Profile,
-  opts: { ai: boolean; notice?: string; links?: Link[] },
+  opts: { ai: boolean; notice?: string },
 ): Deck {
   const title = fitLine(opts.ai ? (kind === "ask" ? "AI answer" : "AI brief") : kind === "ask" ? "Answer" : "Brief", profile.cols);
   const lead = opts.ai ? "" : `${opts.notice ? sanitize(opts.notice, 60) + " " : ""}Offline answer. `;
-  const src = sanitize(sources.map((s) => sanitize(s, 80)).filter(Boolean).join("; ") || "Wikipedia", 50);
-  const tail = ` Source: ${src}.`;
+  const cited = [...new Set(sources.map((s) => sanitize(s, TITLE_MAX)).filter(Boolean))].slice(0, 2);
+  const all: Link[] = cited.map((t) => ({ label: `Read: ${t}`, href: articleHref(t) })).filter((l) => l.href.length <= MAX_PATH);
   const words = sanitize(body).split(" ").filter(Boolean);
   const build = (n: number, links: Link[]) =>
-    menuCards(title, `${lead}${words.slice(0, n).join(" ")}${n < words.length ? " ~" : ""}${tail}`.trim(), links, profile, { idPrefix: "q" });
-  for (const links of [opts.links ?? [], []]) {
+    menuCards(title, `${lead}${words.slice(0, n).join(" ")}${n < words.length ? " ~" : ""}`.trim() || "-", links, profile, { idPrefix: "q" });
+  const fits = (cards: Card[]) => cards.length <= ANSWER_CARDS && (cards[cards.length - 1]?.lines.length ?? 0) > 0;
+  for (const links of [all, all.slice(0, 1), []]) {
+    if (!fits(build(0, links))) continue;
     let lo = 0;
     let hi = words.length;
-    if (build(0, links).length > ANSWER_CARDS) continue;
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
-      if (build(mid, links).length <= ANSWER_CARDS) lo = mid;
+      if (fits(build(mid, links))) lo = mid;
       else hi = mid - 1;
     }
     return pageDeck(build(lo, links), 0, () => path, profile);
   }
-  return pageDeck(menuCards(title, `${lead}Source: Wikipedia.`, [], profile, { idPrefix: "q" }).slice(0, ANSWER_CARDS), 0, () => path, profile);
+  return pageDeck(menuCards(title, `${lead}See Wikipedia.`, [], profile, { idPrefix: "q" }).slice(0, ANSWER_CARDS), 0, () => path, profile);
 }
 /** Title of the top search hit, or "" if none. */
 export function topTitle(json: unknown): string {

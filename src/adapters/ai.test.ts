@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { envelope, validDeck } from "@/core/budget";
 import { deckText } from "@/core/text";
+import { sanitize } from "@/core/sanitize";
 import { PROFILES } from "@/core/types";
 import { aiText, buildPrompt, geminiProvider, geminiText, mockProvider, providerFromEnv, resetAi, RATE_MAX, type AiProvider } from "./ai";
 import type { GetJson } from "./http";
@@ -48,17 +49,72 @@ describe("AI gateway", () => {
     );
   });
 
-  it("AI answers are labeled AI and end with Source: <title>", async () => {
-    const get = fixture({ pages: [{ title: "Kampala" }, { title: "Uganda" }] }, (u) =>
-      u.includes("Kampala") ? { title: "Kampala", extract: "Kampala is the capital of Uganda. It lies near Lake Victoria." } : { title: "Uganda", extract: "Uganda is a country in East Africa." });
+  const summaries: Record<string, string> = {
+    Kampala: "Kampala is the capital and largest city of Uganda. It lies near Lake Victoria.",
+    Kigali: "Kigali is the capital and largest city of Rwanda.",
+    Uganda: "Uganda is a landlocked country in East Africa. Its capital is Kampala.",
+  };
+  const wiki = (hits: string[], fetched: string[] = []) =>
+    fixture({ pages: hits.map((title) => ({ title })) }, (u) => {
+      const t = decodeURIComponent(u.split("/").pop() ?? "");
+      fetched.push(t);
+      return { title: t, extract: summaries[t] ?? "" };
+    });
+  const readLinks = (d: Parameters<typeof deckText>[0]) => d.cards.flatMap((c) => c.links).filter((l) => l.label.startsWith("Read: ")).map((l) => l.label.slice(6));
+
+  it("regression: 'capital of uganda' with an unrelated 2nd hit (Kigali) cites only Kampala", async () => {
     for (const p of Object.values(PROFILES)) {
       resetAi();
-      const r = await resolveDeck("/ask/q?q=capital", p, get, { ai: mockProvider });
-      const t = text(r.deck).replace(/\s+/g, " ");
+      const fetched: string[] = [];
+      const r = await resolveDeck("/ask/q?q=capital%20of%20uganda", p, wiki(["Kampala", "Kigali"], fetched), { ai: mockProvider });
       expect(r.deck.cards[0]?.title).toMatch(/^AI/);
-      expect(t).toMatch(/Source: Kampala; Uganda\./);
-      expect(t).toContain("Read article");
+      expect(fetched).toEqual(["Kampala"]);
+      expect(text(r.deck)).not.toContain("Kigali");
+      expect(readLinks(r.deck)).toEqual(["Kampala"]);
+      // The source link sits on the last card, together with answer text.
+      const last = r.deck.cards[r.deck.cards.length - 1];
+      expect(last?.links.some((l) => l.label === "Read: Kampala")).toBe(true);
+      expect(last?.lines.length).toBeGreaterThan(0);
     }
+  });
+
+  it("cites only sources the model used, and only supplied ones", async () => {
+    const p = PROFILES.generic;
+    const both: AiProvider = { name: "gemini", call: async () => "Kampala is the capital.\nSOURCES: Kampala; Uganda" };
+    const bogus: AiProvider = { name: "gemini", call: async () => "Kampala is the capital.\nSOURCES: Paris; Kigali" };
+    const second: AiProvider = { name: "gemini", call: async () => "It is Kampala.\nSources: uganda" };
+    const cases: [AiProvider, string[]][] = [[both, ["Kampala", "Uganda"]], [bogus, ["Kampala"]], [second, ["Uganda"]], [fixed("No sources line."), ["Kampala"]]];
+    for (const [ai, expected] of cases) {
+      resetAi();
+      const r = await resolveDeck("/ask/q?q=capital%20of%20uganda", p, wiki(["Kampala", "Uganda"]), { ai });
+      expect(readLinks(r.deck)).toEqual(expected);
+      expect(text(r.deck)).not.toMatch(/SOURCES?:/i);
+    }
+  });
+
+  it("property: no card consists only of a source fragment; cited titles are always supplied ones", async () => {
+    await fc.assert(
+      fc.asyncProperty(hostile, fc.string({ maxLength: 60 }), fc.string({ maxLength: 60 }), profileArb, fc.boolean(), async (out, t1, t2, p, brief) => {
+        resetAi();
+        const titles = [t1 || "Kampala", t2 || "Uganda"];
+        const get = fixture({ pages: titles.map((title) => ({ title })) }, (u) => ({ title: decodeURIComponent(u.split("/").pop() ?? ""), extract: "Some source text here." }));
+        const model: AiProvider = { name: "gemini", call: async () => `${out}\nSOURCES: ${titles[1]}; ${out.slice(0, 30)}` };
+        const r = await resolveDeck(brief ? "/wiki/brief/Kampala" : `/ask/q?q=${encodeURIComponent(titles.join(" "))}`, p, get, { ai: model });
+        expect(validDeck(r.deck, p)).toBe(true);
+        for (const c of r.deck.cards) {
+          // The source is a whole "Read:" link, never loose text, and never alone on a card.
+          expect(c.lines.join(" ")).not.toMatch(/\b(Source|Src|SOURCES):/);
+          if (c.links.some((l) => l.label.startsWith("Read: "))) expect(c.lines.length).toBeGreaterThan(0);
+        }
+        // Labels may be shortened with a visible "~" on narrow screens, so compare as a prefix.
+        const supplied = [...titles, "Kampala"].map((t) => sanitize(t, 60));
+        for (const cited of readLinks(r.deck)) {
+          const stem = cited.replace(/\s*~$/, "");
+          expect(supplied.some((t) => t.startsWith(stem)), `cited "${cited}" not in ${JSON.stringify(supplied)}`).toBe(true);
+        }
+      }),
+      { numRuns: 150 },
+    );
   });
 
   it("falls back to the non-AI answer when the provider fails, times out or is missing", async () => {

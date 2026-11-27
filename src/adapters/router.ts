@@ -6,7 +6,7 @@ import { PROFILES } from "@/core/types";
 import { getJson as defaultGet, type GetJson } from "./http";
 import { latestAnchor } from "./proof";
 import { aiText, QUESTION_MAX, type AiProvider } from "./ai";
-import { aiChars, answerDeck, articleHref, summaryText, topTitles } from "./parse";
+import { aiChars, answerDeck, relevant, summaryText, topTitles } from "./parse";
 import { parseAsk, parseRates, parseWeather, parseWikiArticle, parseWikiSearch, TITLE_MAX, topTitle } from "./parse";
 
 export const CITIES: Record<string, { name: string; lat: number; lon: number }> = {
@@ -114,19 +114,19 @@ async function route(path: string, profile: Profile, get: GetJson, ctx: RouteCtx
   if (a === "ask" && b === "q" && !c) {
     if (!q) return notFound();
     const s = await get(`${WIKI}/w/rest.php/v1/search/title?${new URLSearchParams({ q, limit: "2" })}`, HOUR);
-    const titles = topTitles(s.json, 2);
+    const question = sanitize(url.searchParams.get("q") ?? "", QUESTION_MAX);
+    // Keep the 2nd hit only if its title shares a non-stopword with the question.
+    const titles = topTitles(s.json, 2).filter((t, i) => i === 0 || relevant(t, question));
     if (!titles.length) titles.push(topTitle(s.json));
     const sums = await Promise.all(titles.filter(Boolean).map((t, i) =>
       i === 0 ? get(summaryUrl(t), HOUR) : get(summaryUrl(t), HOUR).catch(() => ({ json: null, stale: true }))));
     const stale = s.stale || sums.some((x) => x.stale);
     const sources = sums.map((x) => summaryText(x.json)).filter((x) => x.title && x.text);
-    const question = sanitize(url.searchParams.get("q") ?? "", QUESTION_MAX);
     const ai = sources.length
       ? await aiText({ kind: "ask", question, sources, maxChars: aiChars(profile), ip: ctx.ip, provider: ctx.ai })
       : ({ ok: false, reason: "failed" } as const);
     if (ai.ok) {
-      const href = articleHref(sources[0]?.title ?? "");
-      const deck = answerDeck(path, "ask", ai.text, sources.map((x) => x.title), profile, { ai: true, links: href.length <= MAX_PATH ? [{ label: "Read article", href }] : [] });
+      const deck = answerDeck(path, "ask", ai.text, ai.used, profile, { ai: true });
       return { status: 200, deck: { ...deck, ...(stale && { offline: true }) } };
     }
     const notice = ai.reason === "limit" ? `${LIMIT_NOTICE} Offline answer.` : "Offline answer.";
@@ -137,13 +137,11 @@ async function route(path: string, profile: Profile, get: GetJson, ctx: RouteCtx
     if (!title) return notFound();
     const r = await get(summaryUrl(title), HOUR);
     const src = summaryText(r.json);
-    const href = articleHref(src.title || title);
-    const links = href.length <= MAX_PATH ? [{ label: "Full article", href }] : [];
-    if (!src.text) return { status: 200, deck: staticDeck(path, "Brief", `No summary for "${title}".`, links, profile) };
+    if (!src.text) return { status: 200, deck: staticDeck(path, "Brief", `No summary for "${title}".`, [{ label: "Search", href: "/wiki" }], profile) };
     const ai = await aiText({ kind: "brief", question: "", sources: [src], maxChars: aiChars(profile), ip: ctx.ip, provider: ctx.ai });
     const deck = ai.ok
-      ? answerDeck(path, "brief", ai.text, [src.title], profile, { ai: true, links })
-      : answerDeck(path, "brief", src.text, [src.title], profile, { ai: false, notice: ai.reason === "limit" ? LIMIT_NOTICE : "", links });
+      ? answerDeck(path, "brief", ai.text, ai.used, profile, { ai: true })
+      : answerDeck(path, "brief", src.text, [src.title], profile, { ai: false, notice: ai.reason === "limit" ? LIMIT_NOTICE : "" });
     return { status: 200, deck: { ...deck, ...(r.stale && { offline: true }) } };
   }
 
