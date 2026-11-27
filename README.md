@@ -48,6 +48,7 @@ flowchart LR
     LiteR["GET /lite/...<br/>core/lite.ts -> HTML"]
     WmlR["GET /wml/...<br/>core/wml.ts -> WML 1.1"]
     Router["adapters/router.ts<br/>path -> deck"]
+    AI["adapters/ai.ts<br/>AI gateway: grounded prompt,<br/>8 s timeout, rate limit, fallback"]
     HTTP["adapters/http.ts<br/>5 s timeout, cache, stale fallback"]
     Parse["adapters/parse.ts"]
     Core["src/core<br/>sanitize, paginate, byte budget,<br/>T9, nav, serializers"]
@@ -64,6 +65,8 @@ flowchart LR
   Anchor -- "fetch + verify" --> API & LiteR
   Anchor -- "Merkle root + public key" --> Chain
   Router --> HTTP --> Up
+  Router -- "Ask, Brief" --> AI
+  AI -- "AI_PROVIDER=gemini" --> Gemini[(Gemini API)]
   Router --> Parse --> Core
   Sim -. "nav + keypad reducers" .-> Core
 ```
@@ -87,6 +90,18 @@ Simulator keyboard: arrow keys for the 5-way pad, Enter = Select, Backspace/Esca
 ## Hosted
 
 `<hosted URL here>`
+
+## AI gateway
+
+Revenant can condense modern content into tiny cards with an AI model, grounded in Wikipedia and with a non-AI fallback.
+
+- **What is AI.** **Ask** searches Wikipedia, takes the summaries of the top 1-2 articles as the source, and asks the model to answer the question from them. **Brief (AI)**, the first link on every article deck (`/wiki/brief/<title>`), condenses the article summary. Both work in the simulator, `/lite` and `/wml`. AI decks have titles starting "AI", fit in at most 3 cards for the current profile, and end with "Source: <article title>".
+- **Grounding.** The model receives only the supplied Wikipedia text, capped at 2,000 characters per article. It is told to answer only from that text, to reply "Not in the source." otherwise, and to treat the source as untrusted data, never instructions. It must reply in plain text, and the output still passes through the sanitizer and paginator, which have the final say on size. An answer that contains a configured secret is discarded.
+- **Fallback.** With no key, or on a quota error, timeout (8 s) or empty or bad output, the deck falls back to the earlier non-AI behavior (the summary itself), marked "Offline answer". The gateway never throws.
+- **Abuse guard.** Each IP gets 20 AI requests per 10 minutes (in memory, so per server instance), and questions are capped at 200 characters. Over the limit, the deck uses the fallback with a short "AI limit reached" notice. Identical requests are answered from an in-memory cache for an hour.
+- **Providers.** `AI_PROVIDER=mock` (the default) is an offline, extractive stand-in that returns the first sentences of the source. `AI_PROVIDER=gemini` calls the Gemini Interactions API (`POST https://generativelanguage.googleapis.com/v1beta/interactions`, `x-goog-api-key` header) with `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`, Google's fastest, lowest-cost text model, with minimal thinking by default. The key is server-only, sent only in that header, and never logged or returned. Tests use only the mock and stubbed fetches.
+- **Free tier.** A Gemini API key from Google AI Studio works on the free tier, which has low per-minute and per-day request limits. When you hit them, users get the offline answer, not an error.
+- **Limitations.** AI can still be wrong or leave out nuance even when grounded, so every answer cites its source article to check against. The summaries are short, so many questions honestly get "Not in the source." The rate limit and cache reset on serverless cold starts. AI answers are not currently measured for token savings.
 
 ## Signed cards
 
@@ -146,6 +161,7 @@ All application code in this repo was written for this project with Kiro. Third-
 
 - Frameworks: [Next.js 15](https://nextjs.org/) (App Router), [React 19](https://react.dev/), [Tailwind CSS v4](https://tailwindcss.com/) (simulator only).
 - Language and tooling: TypeScript 5, ESLint 9 with `eslint-config-next`.
+- AI: [Gemini API](https://ai.google.dev/) (Interactions REST API, called with plain `fetch`; no SDK).
 - MCP and chain: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) with [zod](https://zod.dev/) (MCP server), [viem](https://viem.sh/) (anchor script, Base Sepolia), [tsx](https://tsx.is/) (runs the scripts). All are dev dependencies and stay out of the web bundle. Signing uses `node:crypto` (Ed25519).
 - Testing: [Vitest](https://vitest.dev/), [fast-check](https://fast-check.dev/) (property tests), [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) (test-only, validates WML output).
 - Data: Wikipedia REST/Action APIs and article pages, Open-Meteo, open.er-api.com. No API keys, database or accounts.

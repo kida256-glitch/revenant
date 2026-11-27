@@ -123,8 +123,8 @@ describe("AI gateway", () => {
     const get = fixture({ pages: [{ title: "Kampala" }] }, () => ({ title: "Kampala", extract: "Kampala is the capital." }));
     const r = await resolveDeck("/ask/q?q=capital", PROFILES.nokia3310, get, { ai: provider });
     expect(seen[0]?.url).toBe("https://generativelanguage.googleapis.com/v1beta/interactions");
-    expect(seen[0]?.headers["x-goog-api-key"]).toBe(KEY);
-    expect(seen[0]?.url + seen[0]?.body).not.toContain(KEY);
+    expect(seen[0]?.headers?.["x-goog-api-key"]).toBe(KEY);
+    expect(`${seen[0]?.url ?? ""}${seen[0]?.body ?? ""}`).not.toContain(KEY);
     expect(envelope(r.deck).body).not.toContain(KEY);
     expect(text(r.deck).replace(/\s+/g, " ")).toContain("Offline answer");
     expect(logs.join("\n")).not.toContain(KEY);

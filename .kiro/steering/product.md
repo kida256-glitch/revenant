@@ -19,7 +19,7 @@ Bytes per page. Every screen shows the byte size of the deck just loaded.
 About: attribution cards (Wikipedia, Open-Meteo, exchange-rate provider).
 
 ## Out of scope
-Gemini/LLMs, offline mode, mainnet transactions,
+offline mode, mainnet transactions,
 Playwright, other languages, accounts, databases.
 
 ## Tone
@@ -28,3 +28,5 @@ Dark shell with subtle ghost/Halloween styling. Plain, short copy on the LCD.
 Real WML 1.1 at /wml, no-JS HTML at /lite, normal-article-HTML size comparison on Wikipedia article pages.
 ## M5 additions (in scope)
 Read-only stdio MCP server; Ed25519-signed deck responses + /api/verify; local-only Base Sepolia testnet anchor script and /about/proof.
+## M6 additions (in scope)
+AI gateway (mock/Gemini) for grounded Ask and Brief (AI), with non-AI fallback, per-IP limit, 3-card answers.
