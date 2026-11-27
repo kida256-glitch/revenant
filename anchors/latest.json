@@ -1,4 +1,35 @@
 {
   "network": "base-sepolia",
-  "anchored": false
+  "chainId": 84532,
+  "txHash": "0xc3c10b70dbe10392a7b824ae300ae395e832241f93e6248b59cd411fe9bda40b",
+  "explorerUrl": "https://sepolia.basescan.org/tx/0xc3c10b70dbe10392a7b824ae300ae395e832241f93e6248b59cd411fe9bda40b",
+  "blockNumber": 64222542,
+  "timestamp": "2026-11-27T07:59:37.295Z",
+  "root": "dafff9a2c7de801eb2267b606a706532751a1f3fcaf4c6c5cce71cce98a38e8f",
+  "keyId": "b037bef1d1b6b035",
+  "publicKey": "MCowBQYDK2VwAyEA5O39m7HTKBMxE4OT7DPVJ469xmKfxtecInAtOGFafNA=",
+  "data": "revenant-anchor:v1;root=dafff9a2c7de801eb2267b606a706532751a1f3fcaf4c6c5cce71cce98a38e8f;key=MCowBQYDK2VwAyEA5O39m7HTKBMxE4OT7DPVJ469xmKfxtecInAtOGFafNA=",
+  "leaves": [
+    {
+      "path": "/",
+      "url": "https://revenant-henna.vercel.app/api/deck?path=%2F&profile=nokia3310",
+      "bytes": 372,
+      "sha256": "1cc9d42defb165d2a7c27b227b168192f88532904a447f5501ed45f48ebedcf7",
+      "signature": "oC4b/AkuOu6kp/JJIyMgAMVUIjGz8+TjMG5zDRucCx/tltDfS7v7mMvHmm1u6BS2YezgyyV6a91aQX12RWbJDw=="
+    },
+    {
+      "path": "/lite",
+      "url": "https://revenant-henna.vercel.app/lite",
+      "bytes": 544,
+      "sha256": "8420501a5681324c22a0d89ac462b4fedeaf0ca5a54a41d1537dcead269b9383",
+      "signature": "IeliA4QgEUbhARzZlxV3wYdj70gUQR3meKdgjh8xtP5/dHzmm5lGjCafYzXLUCsl1d36c/dBndOb4uWdjT+tDQ=="
+    },
+    {
+      "path": "/wiki/a/Kampala",
+      "url": "https://revenant-henna.vercel.app/api/deck?path=%2Fwiki%2Fa%2FKampala&profile=nokia3310",
+      "bytes": 1314,
+      "sha256": "1d5a20836d92f2aa4dd5c12d324fb5922919b03d8e66b527610b46c014a10731",
+      "signature": "scO+gqxvz9DI768pJ9QbM71T8RoC1j3fEL1rZF1CIhKQzXTUYk/vPxStJE4MdSIBnw7kC4JsF02A2uzPlXxlDQ=="
+    }
+  ]
 }
