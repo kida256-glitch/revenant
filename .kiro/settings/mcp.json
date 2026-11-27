@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "revenant": {
+      "command": "node",
+      "args": ["C:\\dev\\revenant\\node_modules\\tsx\\dist\\cli.mjs", "--tsconfig", "C:\\dev\\revenant\\tsconfig.json", "C:\\dev\\revenant\\scripts\\mcp-server.ts"],
+      "disabled": false,
+      "autoApprove": ["render_deck", "measure_deck"]
+    }
+  }
+}
