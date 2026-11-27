@@ -1,4 +1,4 @@
-import { emptyKeypad, keypadReduce, keypadText, type Key, type KeypadState } from "./t9";
+import { emptyKeypad, keypadInsert, keypadReduce, keypadText, type Key, type KeypadState } from "./t9";
 import { isProfileId, type Card, type Deck, type ProfileId } from "./types";
 
 export interface NavState {
@@ -98,6 +98,13 @@ function select(s: NavState, card: Card): NavResult {
 }
 
 /** Navigation reducer. Pure; the caller performs the returned effect. */
+/** Type a character into the current card's input (no-op without one). */
+export function navType(s: NavState, ch: string): NavResult {
+  const card = currentCard(s);
+  if (!card?.input || !/^[A-Za-z ]$/.test(ch)) return { state: s };
+  return { state: { ...s, focus: 0, keypad: keypadInsert(s.keypad, ch) } };
+}
+
 export function navReduce(s: NavState, key: Key): NavResult {
   const card = currentCard(s);
   if (!card || !s.deck) return key === "back" || key === "softR" ? back(s) : { state: s };

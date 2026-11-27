@@ -1,10 +1,11 @@
 "use client";
 
+import { mapKeyboard } from "@/core/keyboard";
 import { verifyEd25519 } from "@/core/verify";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { unavailableDeck } from "@/core/budget";
 import { wrap } from "@/core/fit";
-import { currentCard, currentPath, initialNav, navLoaded, navReduce, type NavState } from "@/core/nav";
+import { currentCard, currentPath, initialNav, navLoaded, navReduce, navType, type NavState } from "@/core/nav";
 import { keypadText, type Key } from "@/core/t9";
 import { DEFAULT_PROFILE, isProfileId, PROFILES, type Card, type Deck, type ProfileId } from "@/core/types";
 
@@ -28,10 +29,6 @@ const KEYPAD: { key: Key; sub: string }[] = [
   { key: "*", sub: "next" }, { key: "0", sub: "space" }, { key: "#", sub: "T9/abc" },
 ];
 
-const KEYBOARD: Record<string, Key> = {
-  ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
-  Enter: "select", Backspace: "softR", Escape: "back", "*": "*", "#": "#",
-};
 
 interface Row {
   text: string;
@@ -162,8 +159,8 @@ export default function Phone() {
     void load("/", pid);
   }, [commit, load]);
 
-  const press = useCallback((key: Key) => {
-    const res = navReduce(navRef.current, key);
+  const press = useCallback((key: Key | { ch: string }) => {
+    const res = typeof key === "string" ? navReduce(navRef.current, key) : navType(navRef.current, key.ch);
     commit(res.state);
     const eff = res.effect;
     if (eff?.type === "open" && eff.url.startsWith("https://")) window.open(eff.url, "_blank", "noopener,noreferrer");
@@ -177,14 +174,18 @@ export default function Phone() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const k: Key | undefined = /^[0-9]$/.test(e.key) ? (e.key as Key) : KEYBOARD[e.key];
-      if (!k) return;
+      const t = e.target as HTMLElement | null;
+      const editable = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      const a = mapKeyboard({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, editable }, !!currentCard(navRef.current)?.input);
+      if (!a) return;
       e.preventDefault();
-      press(k);
+      // Keyboard focus may sit on a clicked phone button; drop it so Enter isn't also a click.
+      if (t instanceof HTMLButtonElement) t.blur();
+      press(a.type === "key" ? a.key : { ch: a.ch });
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase on document: works without clicking the phone first.
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [press]);
 
   const p = PROFILES[profile];
@@ -232,10 +233,10 @@ export default function Phone() {
           {cached && status !== "loading" ? " (cached, 0 B used)" : ""}
           {status === "offline" && <span className="badge">OFFLINE</span>}
           {status === "error" && <span className="badge">ERROR</span>}
-          {status !== "loading" && signed === "signed" && <span className="badge" title="Ed25519 signature verified">&#10004; signed</span>}
-          {status !== "loading" && signed === "unsigned" && <span className="badge">unsigned</span>}
-          {status !== "loading" && signed === "invalid" && <span className="badge">&#10006; signature invalid</span>}
-          {status !== "loading" && signed === "unchecked" && <span className="badge">signed (not checked)</span>}
+          {status !== "loading" && signed === "signed" && <span className="badge badge-ok" title="Ed25519 signature verified">&#10004; signed</span>}
+          {status !== "loading" && signed === "unsigned" && <span className="badge badge-muted">unsigned</span>}
+          {status !== "loading" && signed === "invalid" && <span className="badge badge-bad">&#10006; signature invalid</span>}
+          {status !== "loading" && signed === "unchecked" && <span className="badge badge-muted">signed (not checked)</span>}
         </div>
         {weight !== null && bytes !== null && status !== "loading" && (
           <div className="meter-sub">

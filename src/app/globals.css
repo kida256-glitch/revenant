@@ -128,3 +128,7 @@ button:active { filter: brightness(1.4); box-shadow: 0 0 10px rgba(157, 255, 176
 button:focus-visible { outline: 2px solid var(--ecto); outline-offset: 1px; }
 
 .hint { text-align: center; font-size: 10px; color: #6f6b80; margin-top: 10px; }
+
+.badge-ok { background: #3ddc8422; color: #7ee2a8; }
+.badge-bad { background: #ff6b6b22; color: #ff9b9b; }
+.badge-muted { background: #ffffff14; color: #a8a8b3; }

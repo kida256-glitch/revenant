@@ -4,7 +4,8 @@ import { paginate, unwrap } from "./fit";
 import { sanitize } from "./sanitize";
 import { bytes, CARD_MAX, envelope, unavailableDeck, utf8Length, validCard, validDeck } from "./budget";
 import { ALL_KEYS, emptyKeypad, keypadReduce, MAX_INPUT, multitapEncode, T9_WORDS, t9Encode, typeKeys } from "./t9";
-import { currentPath, initialNav, isValidNav, navLoaded, navReduce, type NavState } from "./nav";
+import { currentPath, initialNav, isValidNav, navLoaded, navReduce, navType, type NavState } from "./nav";
+import { mapKeyboard } from "./keyboard";
 import { PROFILES, type Deck, type ProfileId } from "./types";
 
 const profileArb = fc.constantFrom(...Object.values(PROFILES));
@@ -141,5 +142,34 @@ describe("sanitize: empty bracket groups", () => {
   it("cleans the Wikipedia pronunciation residue and keeps real groups", () => {
     expect(sanitize("Kampala (UK: , US: ) is the capital ( ) of Uganda [ ] .")).toBe("Kampala is the capital of Uganda.");
     expect(sanitize("Kampala (born 1962) is (( ) )big")).toBe("Kampala (born 1962) is big");
+  });
+});
+
+describe("laptop keyboard mapping", () => {
+  it("maps keypad, navigation and letters", () => {
+    for (const d of "0123456789*#") expect(mapKeyboard({ key: d }, false)).toEqual({ type: "key", key: d });
+    expect(mapKeyboard({ key: "ArrowUp" }, false)).toEqual({ type: "key", key: "up" });
+    expect(mapKeyboard({ key: "ArrowRight" }, false)).toEqual({ type: "key", key: "right" });
+    expect(mapKeyboard({ key: "Enter" }, false)).toEqual({ type: "key", key: "select" });
+    expect(mapKeyboard({ key: "Backspace" }, true)).toEqual({ type: "key", key: "softR" });
+    expect(mapKeyboard({ key: "Escape" }, true)).toEqual({ type: "key", key: "back" });
+    expect(mapKeyboard({ key: "K" }, true)).toEqual({ type: "char", ch: "K" });
+    expect(mapKeyboard({ key: "k" }, false)).toBeNull();
+    expect(mapKeyboard({ key: "5", editable: true }, true)).toBeNull();
+    expect(mapKeyboard({ key: "c", ctrlKey: true }, true)).toBeNull();
+    expect(mapKeyboard({ key: "Tab" }, true)).toBeNull();
+  });
+
+  it("letters type straight into the input; Backspace clears, then goes Back; Enter submits", () => {
+    const deck: Deck = { path: "/wiki", cards: [{ id: "c0", title: "Wikipedia", lines: [], links: [], input: { name: "q", action: "/wiki/search" } }] };
+    let s = navLoaded(navReduce(navLoaded(initialNav("nokia3310").state, { path: "/", cards: [{ id: "h", title: "H", lines: [], links: [{ label: "1 Wikipedia", href: "/wiki" }] }] }), "1").state, deck);
+    for (const ch of "Kampala") s = navType(s, ch).state;
+    expect(s.keypad.text).toBe("Kampala");
+    const sub = navReduce(s, "select");
+    expect(sub.effect).toEqual({ type: "load", path: "/wiki/search?q=Kampala" });
+    for (let i = 0; i < 7; i++) s = navReduce(s, "softR").state;
+    expect(s.keypad.text).toBe("");
+    expect(currentPath(navReduce(s, "softR").state)).toBe("/");
+    expect(navType(s, "<").state).toBe(s);
   });
 });

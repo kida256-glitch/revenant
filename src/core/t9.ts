@@ -95,6 +95,12 @@ function isDigit(k: Key): boolean {
   return k.length === 1 && k >= "0" && k <= "9";
 }
 
+/** Type a character directly (laptop keyboard), bypassing T9/multitap. */
+export function keypadInsert(s: KeypadState, ch: string): KeypadState {
+  const base = commit(s);
+  return base.text.length >= MAX_INPUT ? base : { ...base, text: base.text + ch };
+}
+
 /** Keypad reducer. Keys other than digits, *, # and delete leave the state unchanged. */
 export function keypadReduce(s: KeypadState, key: Key | "delete"): KeypadState {
   if (key === "#") return { ...commit(s), mode: s.mode === "t9" ? "abc" : "t9" };
