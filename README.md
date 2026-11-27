@@ -43,7 +43,7 @@ flowchart LR
   subgraph Server["Next.js 15 server"]
     API["GET /api/deck<br/>JSON {deck, bytes}"]
     Weight["GET /api/weight?title=<br/>{normalBytes}"]
-    Verify["GET /api/verify<br/>{valid, keyId, publicKey}"]
+    Verify["GET /api/verify (other clients)<br/>GET /api/public-key"]
     Sign["adapters/sign.ts<br/>Ed25519 over exact body bytes"]
     LiteR["GET /lite/...<br/>core/lite.ts -> HTML"]
     WmlR["GET /wml/...<br/>core/wml.ts -> WML 1.1"]
@@ -59,7 +59,7 @@ flowchart LR
   WAP --> WmlR
   API & LiteR & WmlR --> Router
   API & LiteR & WmlR -- "X-Revenant-Signature" --> Sign
-  Sim -. "badge" .-> Verify --> Sign
+  Sim -. "public key, then Web Crypto verify" .-> Verify --> Sign
   Agent --> MCP --> Router
   Anchor -- "fetch + verify" --> API & LiteR
   Anchor -- "Merkle root + public key" --> Chain
@@ -93,7 +93,7 @@ Simulator keyboard: arrow keys for the 5-way pad, Enter = Select, Backspace/Esca
 WAP 1.x had WTLS, a security layer between the phone and the gateway. Revenant revives the idea at the content level:
 
 - **What is signed.** Every response from `/api/deck`, `/lite` and `/wml` carries `X-Revenant-Signature`, an Ed25519 signature (base64) over the exact response body bytes, plus `X-Revenant-Key-Id` (first 16 hex digits of the SHA-256 of the public key). The private key comes from the server-only env var `REVENANT_SIGNING_KEY`. Without it, responses say `X-Revenant-Signature: unsigned` and local dev still works. `npm run keys:generate` prints a new key pair to the terminal and writes no file.
-- **Checking.** `GET /api/verify?body=...&sig=...` returns `{ valid, keyId, publicKey }`, or a small JSON error. The simulator calls it after each fresh deck and shows "&#10004; signed" or "unsigned" next to the byte counter. Property tests check that flipping any byte of a signed deck fails verification and that hostile input to the verifier always returns JSON.
+- **Checking.** `GET /api/verify?body=...&sig=...` returns `{ valid, keyId, publicKey }`, or a small JSON error. `GET /api/public-key` serves `{ keyId, publicKey }` with a one-day cache. The simulator fetches the key once and checks each fresh deck in the browser with Web Crypto (`crypto.subtle.verify("Ed25519", ...)`) over the exact response bytes. Nothing is uploaded. The badge next to the byte counter reads "&#10004; signed", "&#10006; signature invalid", "signed (not checked)" when the browser lacks Ed25519, or "unsigned". Property tests check that flipping any byte of a signed deck fails verification and that hostile input to the verifier always returns JSON.
 - **Anchor.** `npm run anchor -- <base URL>` runs only on your machine. It fetches three demo pages (`/`, `/lite`, `/wiki/a/Kampala`) and checks each signature through `/api/verify` and again locally. It then builds a SHA-256 Merkle root of the exact signed bodies and sends a zero-value Base Sepolia transaction to its own address with `revenant-anchor:v1;root=...;key=...` in the data field. The wallet key is read only from `ANCHOR_WALLET_KEY` in your shell. The result (root, leaf hashes, paths, signatures, tx hash, time, public key) goes to `anchors/latest.json`, which is committed and shown on **About > Proof** in the simulator, with a link to the transaction on sepolia.basescan.org.
 - **What the anchor proves.** Pages whose bodies hash to those leaves existed, signed by that key, no later than the transaction's block time. Anyone can recompute the leaves and root from the saved bodies and compare them with the on-chain data.
 - **What it does not prove.** It covers only that one snapshot. Weather, rates and Wikipedia change, so today's responses won't match the anchored hashes. Verify a saved copy, not a fresh fetch. It doesn't prove the content is true, only who signed it and when. It runs on testnet only, which carries no economic guarantee. Anyone holding the private key can sign, and `/api/verify` trusts only the server's current key.
@@ -137,7 +137,7 @@ The compact web is cheap for agents to read too. A Wikipedia article deck is abo
 - Caches live in server memory. On serverless hosting they reset on cold starts, so the "offline" stale fallback works only while an instance stays warm.
 - Free upstream APIs have rate limits. When an upstream fails and nothing is cached, you get an error deck.
 - There are no browser end-to-end tests, only unit and property tests.
-- The signature badge relies on the server's own `/api/verify`, so it detects corruption or tampering between server and simulator, not a compromised server. The badge check also re-sends the deck body (a few KB) that the byte counter doesn't count. The "View tx" link works in the simulator only, because `/lite` and `/wml` map external links to Home.
+- The signature badge trusts the public key served by the same site (`/api/public-key`), so it detects corruption or tampering between server and simulator, not a compromised server. The "View tx" link works in the simulator only, because `/lite` and `/wml` map external links to Home.
 
 ## Originality
 

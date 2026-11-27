@@ -1,5 +1,6 @@
 "use client";
 
+import { verifyEd25519 } from "@/core/verify";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { unavailableDeck } from "@/core/budget";
 import { wrap } from "@/core/fit";
@@ -8,7 +9,17 @@ import { keypadText, type Key } from "@/core/t9";
 import { DEFAULT_PROFILE, isProfileId, PROFILES, type Card, type Deck, type ProfileId } from "@/core/types";
 
 type Status = "loading" | "ok" | "offline" | "error";
-type Sig = "signed" | "unsigned" | "checking" | null;
+type Sig = "signed" | "invalid" | "unchecked" | "unsigned" | "checking" | null;
+
+/** Server public key, fetched once per page load (long-cached by /api/public-key). */
+let keyPromise: Promise<{ keyId: string; publicKey: string } | null> | null = null;
+function serverKey() {
+  keyPromise ??= fetch("/api/public-key")
+    .then((r) => (r.ok ? (r.json() as Promise<{ keyId?: unknown; publicKey?: unknown }>) : null))
+    .then((j) => (j && typeof j.keyId === "string" && typeof j.publicKey === "string" ? { keyId: j.keyId, publicKey: j.publicKey } : null))
+    .catch(() => null);
+  return keyPromise;
+}
 
 const KEYPAD: { key: Key; sub: string }[] = [
   { key: "1", sub: ".,?" }, { key: "2", sub: "abc" }, { key: "3", sub: "def" },
@@ -109,8 +120,9 @@ export default function Phone() {
     setStatus("loading");
     try {
       const res = await fetch(`/api/deck?path=${encodeURIComponent(path)}&profile=${pid}`);
-      const text = await res.text();
-      const n = new TextEncoder().encode(text).length;
+      const raw = new Uint8Array(await res.arrayBuffer());
+      const text = new TextDecoder().decode(raw);
+      const n = raw.length;
       const body = JSON.parse(text) as { deck?: Deck };
       const deck = body.deck;
       if (!deck || !Array.isArray(deck.cards) || deck.cards.length === 0) throw new Error("bad deck");
@@ -121,14 +133,20 @@ export default function Phone() {
       if (res.ok && !deck.offline) cache.current.set(key, entry);
       apply(deck, n, false, deck.offline ? "offline" : deck.error ? "error" : "ok", sig);
       if (sig === "checking" && sigHeader) {
-        // Non-blocking: ask the server to check the exact body against its public key.
+        // Non-blocking: verify the exact response bytes in the browser with Web Crypto Ed25519.
         const done = (v: Sig) => {
           entry.sig = v;
           if (currentPath(navRef.current) === path) setSigned(v);
         };
-        fetch(`/api/verify?${new URLSearchParams({ body: text, sig: sigHeader })}`)
-          .then((r) => r.json() as Promise<{ valid?: unknown }>)
-          .then((j) => done(j.valid === true ? "signed" : "unsigned"), () => done("unsigned"));
+        const kid = res.headers.get("X-Revenant-Key-Id");
+        serverKey()
+          .then(async (k) => {
+            if (!k) return done("unchecked");
+            if (kid && kid !== k.keyId) return done("invalid");
+            const r = await verifyEd25519(k.publicKey, sigHeader, raw);
+            done(r === "valid" ? "signed" : r === "invalid" ? "invalid" : "unchecked");
+          })
+          .catch(() => done("unchecked"));
       }
     } catch {
       apply(unavailableDeck(path, "Network", PROFILES[pid]), 0, false, "error", null);
@@ -216,6 +234,8 @@ export default function Phone() {
           {status === "error" && <span className="badge">ERROR</span>}
           {status !== "loading" && signed === "signed" && <span className="badge" title="Ed25519 signature verified">&#10004; signed</span>}
           {status !== "loading" && signed === "unsigned" && <span className="badge">unsigned</span>}
+          {status !== "loading" && signed === "invalid" && <span className="badge">&#10006; signature invalid</span>}
+          {status !== "loading" && signed === "unchecked" && <span className="badge">signed (not checked)</span>}
         </div>
         {weight !== null && bytes !== null && status !== "loading" && (
           <div className="meter-sub">

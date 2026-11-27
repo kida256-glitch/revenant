@@ -4,6 +4,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { envelope, pageDeck } from "@/core/budget";
 import { paginate } from "@/core/fit";
 import { PROFILES } from "@/core/types";
+import { verifyEd25519 } from "@/core/verify";
 import { loadSigner, signatureHeaders, signBody, SIG_HEADER, UNSIGNED, verifyBytes, verifyRequest } from "./sign";
 
 const keyB64 = generateKeyPairSync("ed25519").privateKey.export({ format: "der", type: "pkcs8" }).toString("base64");
@@ -48,5 +49,24 @@ describe("signed decks", () => {
     expect(verifyRequest(body + " ", h[SIG_HEADER], signer).json.valid).toBe(false);
     expect(signatureHeaders(body, null)).toEqual({ [SIG_HEADER]: UNSIGNED });
     expect(loadSigner("not a key")).toBeNull();
+  });
+});
+
+describe("browser verification (Web Crypto, same helper as the simulator)", () => {
+  const body = new Uint8Array(Buffer.from(envelope(pageDeck(paginate("Hi", "Hello there", PROFILES.nokia3310, "a"), 0, () => "/", PROFILES.nokia3310)).body, "utf8"));
+  const sig = signBody(body, signer);
+  it("valid signature passes; any one-byte change fails", async () => {
+    expect(await verifyEd25519(signer.publicKeyB64, sig, body)).toBe("valid");
+    for (const i of [0, Math.floor(body.length / 2), body.length - 1]) {
+      const bad = new Uint8Array(body);
+      bad[i] = (bad[i] ?? 0) ^ 1;
+      expect(await verifyEd25519(signer.publicKeyB64, sig, bad)).toBe("invalid");
+    }
+    expect(await verifyEd25519(signer.publicKeyB64, "garbage", body)).toBe("invalid");
+  });
+  it("reports unsupported without Ed25519", async () => {
+    expect(await verifyEd25519(signer.publicKeyB64, sig, body, {} as SubtleCrypto)).toBe("unsupported");
+    const noEd = { importKey: async () => { throw Object.assign(new Error("x"), { name: "NotSupportedError" }); } } as unknown as SubtleCrypto;
+    expect(await verifyEd25519(signer.publicKeyB64, sig, body, noEd)).toBe("unsupported");
   });
 });
